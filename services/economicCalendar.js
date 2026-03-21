@@ -4,8 +4,11 @@ const path = require("path");
 const { fetchBabyPipsCalendar } = require("./babypipsScraper");
 
 const CACHE_FILE = path.join(__dirname, "../calendar_cache.json");
+const AV_CACHE_FILE = path.join(__dirname, "../data/av_cache.json");
+
 const CACHE_MS = 15 * 60 * 1000;
-const AV_CACHE_MS = 60 * 60 * 1000; // 1 hour for AlphaVantage to stay under 25/day
+const AV_CACHE_MS = 6 * 60 * 60 * 1000; // 6 hours for AlphaVantage to stay under 25/day
+const AV_HARD_COOLDOWN_MS = 30 * 60 * 1000; // Minimum 30 mins between ANY AV call
 
 function loadCache() {
   try {
@@ -31,20 +34,62 @@ function saveCache(data) {
   }
 }
 
-let calendarCache = loadCache();
+function loadAVCache() {
+    try {
+        if (fs.existsSync(AV_CACHE_FILE)) {
+            const raw = fs.readFileSync(AV_CACHE_FILE, "utf8");
+            return JSON.parse(raw);
+        }
+    } catch (e) {
+        console.warn("AV Cache load error:", e.message);
+    }
+    return {
+        calendar: { data: [], updatedAt: 0 },
+        news: { data: [], updatedAt: 0 },
+        rateLimitedUntil: 0,
+        lastCallTime: 0
+    };
+}
 
-let avCalendarCache = {
-  data: [],
-  updatedAt: 0,
-  rateLimitedUntil: 0
-};
+function saveAVCache(cache) {
+    try {
+        const dir = path.dirname(AV_CACHE_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(AV_CACHE_FILE, JSON.stringify(cache, null, 2));
+    } catch (e) {
+        console.warn("AV Cache save error:", e.message);
+    }
+}
+
+let calendarCache = loadCache();
+let avCache = loadAVCache();
 
 let pendingCalendarFetch = null;
 
 async function fetchAlphaVantageMacroNews(limit = 8) {
+  const now = Date.now();
+  
+  // 1. Check rate limit
+  if (now < avCache.rateLimitedUntil) return avCache.news.data;
+
+  // 2. Check Cache TTL (6 hours)
+  if (now - avCache.news.updatedAt < AV_CACHE_MS && avCache.news.data.length > 0) {
+      return avCache.news.data;
+  }
+
+  // 3. Check Hard Cooldown (30 mins)
+  if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
+      console.log("⏳ AV News: Skipping due to hard cooldown.");
+      return avCache.news.data;
+  }
+
   try {
     const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (!apiKey) return [];
+
+    console.log("📡 Fetching Macro News from AlphaVantage...");
+    avCache.lastCallTime = now;
+    saveAVCache(avCache);
 
     const response = await axios.get("https://www.alphavantage.co/query", {
       params: {
@@ -57,9 +102,17 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
       timeout: 10000
     });
 
-    const feed = Array.isArray(response.data?.feed) ? response.data.feed : [];
+    // Check for rate limit info in JSON
+    const info = response.data?.Information || response.data?.Note;
+    if (info && (info.includes("rate limit") || info.includes("25 requests per day"))) {
+        console.warn("🛑 AlphaVantage Rate Limit Detected (News). Hibernating for 12 hours.");
+        avCache.rateLimitedUntil = now + (12 * 60 * 60 * 1000);
+        saveAVCache(avCache);
+        return avCache.news.data;
+    }
 
-    return feed.slice(0, limit).map((item) => ({
+    const feed = Array.isArray(response.data?.feed) ? response.data.feed : [];
+    const newsData = feed.slice(0, limit).map((item) => ({
       type: "news",
       source: "AlphaVantage",
       date: item.time_published || null,
@@ -70,28 +123,37 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
       previous: "N/A",
       url: item.url || null
     }));
+
+    if (newsData.length > 0) {
+        avCache.news = { data: newsData, updatedAt: now };
+        saveAVCache(avCache);
+    }
+
+    return newsData;
   } catch (error) {
-    console.error("AlphaVantage news error:", error.message);
-    return [];
+    console.warn("AlphaVantage news error:", error.message);
+    return avCache.news.data;
   }
 }
 
 async function fetchAlphaVantageCalendar(forceRefresh = false) {
   const now = Date.now();
   
-  if (now < avCalendarCache.rateLimitedUntil) {
-    console.warn(`🛑 AlphaVantage Rate Limit Active. skipping fetch for ${Math.round((avCalendarCache.rateLimitedUntil - now) / 1000 / 60)} minutes.`);
-    return avCalendarCache.data;
+  // 1. Check rate limit hibernation
+  if (now < avCache.rateLimitedUntil) {
+    console.warn(`🛑 AlphaVantage in hibernation. skipping fetch for ${Math.round((avCache.rateLimitedUntil - now) / 1000 / 60)} minutes.`);
+    return avCache.calendar.data;
   }
 
-  const FORCE_COOLDOWN_MS = 10 * 60 * 1000;
-  if (forceRefresh && now - avCalendarCache.updatedAt < FORCE_COOLDOWN_MS && avCalendarCache.data.length > 0) {
-    console.log("⏳ AV Force Refresh Cooldown: Using cache instead of hitting API.");
-    return avCalendarCache.data;
+  // 2. Check Cache TTL (6 hours)
+  if (!forceRefresh && now - avCache.calendar.updatedAt < AV_CACHE_MS && avCache.calendar.data.length > 0) {
+    return avCache.calendar.data;
   }
 
-  if (!forceRefresh && now - avCalendarCache.updatedAt < AV_CACHE_MS && avCalendarCache.data.length > 0) {
-    return avCalendarCache.data;
+  // 3. Check Hard Cooldown (30 mins)
+  if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
+      console.log("⏳ AV Calendar: Skipping due to hard cooldown.");
+      return avCache.calendar.data;
   }
 
   try {
@@ -99,6 +161,9 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
     if (!apiKey) return [];
 
     console.log("📡 Fetching Actuals from AlphaVantage Calendar...");
+    avCache.lastCallTime = now;
+    saveAVCache(avCache);
+
     const response = await axios.get("https://www.alphavantage.co/query", {
       params: {
         function: "ECONOMIC_CALENDAR",
@@ -124,20 +189,22 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
           return entry;
       });
 
-      avCalendarCache = { data, updatedAt: now, rateLimitedUntil: 0 };
+      avCache.calendar = { data, updatedAt: now };
+      saveAVCache(avCache);
       return data;
     } else if (response.data?.Information || response.data?.Note) {
       const info = response.data.Information || response.data.Note;
       console.warn("⚠️ AlphaVantage API Info:", info);
-      if (info.includes("rate limit") || info.includes("higher than your plan")) {
-        avCalendarCache.rateLimitedUntil = now + (30 * 60 * 1000);
-        console.warn("🚫 AV Rate Limit Triggered. Cooldown set for 30 minutes.");
+      if (info.includes("rate limit") || info.includes("25 requests per day")) {
+        avCache.rateLimitedUntil = now + (12 * 60 * 60 * 1000);
+        saveAVCache(avCache);
+        console.warn("🚫 AV Rate Limit Triggered. Hibernating for 12 hours.");
       }
     }
-    return avCalendarCache.data;
+    return avCache.calendar.data;
   } catch (error) {
     console.error("AlphaVantage calendar error:", error.message);
-    return avCalendarCache.data;
+    return avCache.calendar.data;
   }
 }
 
@@ -178,15 +245,11 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
     let bpCal = [];
     try {
       const allBp = await fetchBabyPipsCalendar();
-      // Filter: Only major countries AND High Impact (as requested)
       bpCal = allBp.filter(e => {
           const name = e.event.toUpperCase();
           const isMajor = majorCountries.includes(e.country);
           const isHigh = e.impact === "High";
-          
-          // Filter out redundant CPI index values (keep "Inflation Rate")
           if (e.country === "USD" && (name === "CPI" || name === "CPI S.A")) return false;
-          
           return isMajor && isHigh;
       });
     } catch (bpErr) {
@@ -202,83 +265,43 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
         timeout: 10000
       });
-      if (Array.isArray(feRes.data)) {
-        feData = feRes.data;
-      }
-    } catch (err) {
-      console.warn("⚠️ FairEconomy mirror unreachable/limited:", err.message);
-    }
+      if (Array.isArray(feRes.data)) feData = feRes.data;
+    } catch (err) { }
 
-    // 3. Determine Base Skeleton (BabyPips Priority)
+    // 3. Base Skeleton
     let events = [];
     if (bpCal.length > 0) {
-      console.log(`🍼 Using BabyPips as primary skeleton (${bpCal.length} High-Impact events).`);
       events = bpCal;
     } else if (feData.length > 0) {
-      console.log(`📊 Fallback: Using FairEconomy as skeleton (${feData.length} events).`);
-      // Re-filter FE for Major Countries and High Impact
       events = feData.filter(e => majorCountries.includes(e.country) && e.impact === "High").map(e => ({
-        type: "event",
-        source: "FairEconomy",
-        date: e.date,
-        country: e.country,
-        event: e.title,
-        impact: e.impact,
-        forecast: e.forecast || "N/A",
-        previous: e.previous || "N/A",
-        actual: e.actual || "N/A"
+        type: "event", source: "FairEconomy", date: e.date, country: e.country, event: e.title, impact: e.impact, forecast: e.forecast || "N/A", previous: e.previous || "N/A", actual: e.actual || "N/A"
       }));
     } else {
-      console.warn("❌ No data from FE or BP. Using existing cache.");
       return calendarCache.data;
     }
 
-    // 4. Supplement with AlphaVantage (Actuals backup)
-    let avCal = [];
-    try {
-      if (forceRefresh || now - avCalendarCache.updatedAt > AV_CACHE_MS) {
-        avCal = await fetchAlphaVantageCalendar(forceRefresh);
-      }
-    } catch (avErr) { }
+    // 4. Supplement with AlphaVantage (6h Cache)
+    const avCal = await fetchAlphaVantageCalendar(forceRefresh);
 
     const processedEvents = events.map(baseEvent => {
       const feDateStr = baseEvent.date.split("T")[0];
-
-      // A. Supplement from AlphaVantage
-      if (baseEvent.actual === "N/A" && avCal.length > 0) {
+      if (baseEvent.actual === "N/A" && avCal?.length > 0) {
         const avMatch = avCal.find(av => {
           if (!av.date || !av.event) return false;
-          return av.date === feDateStr && (
-            baseEvent.event.toUpperCase().includes(av.event.toUpperCase()) ||
-            av.event.toUpperCase().includes(baseEvent.event.toUpperCase())
-          );
+          return av.date === feDateStr && (baseEvent.event.toUpperCase().includes(av.event.toUpperCase()) || av.event.toUpperCase().includes(baseEvent.event.toUpperCase()));
         });
         if (avMatch?.actual && avMatch.actual !== ".") baseEvent.actual = avMatch.actual;
       }
-
-      // B. Supplement from FairEconomy (if needed)
-      if (baseEvent.source === "BabyPips" && baseEvent.actual === "N/A" && feData.length > 0) {
-          const feMatch = feData.find(fe => {
-              if (!fe.date || !fe.title) return false;
-              const dMatch = fe.date.split("T")[0] === feDateStr;
-              const nMatch = baseEvent.event.toUpperCase().includes(fe.title.toUpperCase()) || fe.title.toUpperCase().includes(baseEvent.event.toUpperCase());
-              return dMatch && nMatch;
-          });
-          if (feMatch?.actual && feMatch.actual !== "N/A") baseEvent.actual = feMatch.actual;
-      }
-
       return baseEvent;
     });
 
-    // Small delay before fetching news to avoid 1s burst limit if just fetched calendar
-    await new Promise(r => setTimeout(r, 1200));
     const avNews = await fetchAlphaVantageMacroNews(5);
     const merged = [...processedEvents, ...avNews];
     
     calendarCache = { data: merged, updatedAt: now };
     saveCache(merged);
 
-    console.log(`✅ Calendar updated: ${processedEvents.length} events.`);
+    console.log(`✅ Calendar updated: ${processedEvents.length} events (+ ${avNews.length} news).`);
     return merged;
 
   } catch (error) {
