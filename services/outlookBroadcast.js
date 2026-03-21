@@ -274,12 +274,10 @@ Instruksi:
 - Jelaskan implikasi praktis untuk trader intraday/swing (tanpa rekomendasi spesifik entry/SL).
 - Jelaskan apa yang paling perlu dipantau hari ini (data, level, atau reaksi pasar), secara naratif saja.`;
 
-        const { postToOpenRouter } = require("../utils/openRouterProxy");
-        const responseData = await postToOpenRouter(messages, {
+        const { postToAI } = require("../utils/aiProxy");
+        return await postToAI(messages, {
             temperature: 0.3
         });
-
-        return responseData.choices[0].message.content;
     } catch (error) {
         console.error("Outlook AI error:", error.message);
         return null;

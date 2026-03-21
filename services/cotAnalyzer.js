@@ -160,12 +160,10 @@ Konteks Makro:
             return existingSnapshot.interpretation;
         }
 
-        const { postToOpenRouter } = require("../utils/openRouterProxy");
-        const responseData = await postToOpenRouter(messages, {
+        const { postToAI } = require("../utils/aiProxy");
+        const interpretation = await postToAI(messages, {
             temperature: 0.2 // More stable for analysis
         });
-
-        const interpretation = responseData.choices[0].message.content;
 
         // Cache the interpretation if we found a snapshot
         if (existingSnapshot) {

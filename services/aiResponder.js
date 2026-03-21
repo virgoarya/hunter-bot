@@ -325,12 +325,12 @@ ${calendarText}
 
     messages.push({ role: "user", content: question });
 
-    const { postToOpenRouter } = require("../utils/openRouterProxy");
-    const response = await postToOpenRouter(messages, {
+    const { postToAI } = require("../utils/aiProxy");
+    const replyContent = await postToAI(messages, {
         temperature: isAnalysisMode ? 0 : 0.7
     });
 
-    return response.choices[0].message.content;
+    return replyContent;
   } catch (error) {
     console.error("OpenRouter API Error:", error.response?.data || error.message);
     return "⚠️ Maaf, Hunter sedang mengalami gangguan koneksi. Silakan coba lagi nanti.";
