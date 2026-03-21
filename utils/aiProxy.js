@@ -37,38 +37,47 @@ async function postToAI(messages, options = {}) {
     const callGemini = async () => {
         if (!apiKeyGemini) throw new Error("GEMINI_API_KEY_MISSING");
         
-        const model = "gemini-1.5-flash-latest";
-        console.log(`📡 [Google Gemini] Calling ${model}...`);
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyGemini}`;
+        // Sequence: gemini-flash-latest -> gemini-flash-lite-latest
+        const geminiModels = ["gemini-flash-latest", "gemini-flash-lite-latest"];
         
-        const systemMessage = messages.find(m => m.role === "system");
-        const userMessages = messages.filter(m => m.role !== "system");
+        for (const model of geminiModels) {
+            try {
+                console.log(`📡 [AI] Trying Gemini Model: ${model}...`);
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyGemini}`;
+                
+                const systemMessage = messages.find(m => m.role === "system");
+                const userMessages = messages.filter(m => m.role !== "system");
 
-        const contents = userMessages.map(m => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }]
-        }));
+                const contents = userMessages.map(m => ({
+                    role: m.role === "assistant" ? "model" : "user",
+                    parts: [{ text: m.content }]
+                }));
 
-        const payload = {
-            contents: contents,
-            generationConfig: {
-                temperature: options.temperature ?? 0.7,
-                maxOutputTokens: options.max_tokens || 2000
+                const payload = {
+                    contents: contents,
+                    generationConfig: {
+                        temperature: options.temperature ?? 0.7,
+                        maxOutputTokens: options.max_tokens || 2000
+                    }
+                };
+
+                if (systemMessage) {
+                    payload.system_instruction = {
+                        parts: [{ text: systemMessage.content }]
+                    };
+                }
+
+                const response = await axios.post(url, payload, { timeout: options.timeout || 30000 });
+                
+                if (response.data.candidates && response.data.candidates[0].content) {
+                    return response.data.candidates[0].content.parts[0].text;
+                }
+            } catch (error) {
+                console.warn(`⚠️ [Gemini ${model} Failed]:`, error.response?.data?.error?.message || error.message);
+                // Continue to next model in sequence
             }
-        };
-
-        if (systemMessage) {
-            payload.system_instruction = {
-                parts: [{ text: systemMessage.content }]
-            };
         }
-
-        const response = await axios.post(url, payload, { timeout: options.timeout || 30000 });
-        
-        if (response.data.candidates && response.data.candidates[0].content) {
-            return response.data.candidates[0].content.parts[0].text;
-        }
-        throw new Error("GEMINI_INVALID_RESPONSE");
+        throw new Error("All Gemini models failed or hit limit.");
     };
 
     // --- EXECUTION FLOW ---
@@ -85,10 +94,10 @@ async function postToAI(messages, options = {}) {
         // 2. Try Google Gemini as first fallback for 429/402/401/403/5xx
         if (status === 429 || status === 402 || status === 401 || status === 403 || status >= 500) {
             try {
-                console.log("🔄 [AI] Step 2: Attempting Failover to Google Gemini...");
+                console.log("🔄 [AI] Step 2: Attempting Failover to Google Gemini (Sequence)...");
                 return await callGemini();
             } catch (geminiError) {
-                console.error("❌ [Gemini Failed]:", geminiError.message);
+                console.error("❌ [Gemini Sequence Failed]:", geminiError.message);
                 
                 // 3. Try NVIDIA Nemotron (OpenRouter) as last resort
                 try {
