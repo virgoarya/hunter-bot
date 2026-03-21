@@ -332,8 +332,11 @@ ${calendarText}
 
     return replyContent;
   } catch (error) {
-    console.error("OpenRouter API Error:", error.response?.data || error.message);
-    return "⚠️ Maaf, Hunter sedang mengalami gangguan koneksi. Silakan coba lagi nanti.";
+    console.error("❌ generateReply Final Error:", error.message);
+    if (error.message.includes("AI providers failed")) {
+        return "⚠️ Maaf, sepertinya kuota AI (OpenRouter & Gemini) sedang limit secara bersamaan. Silakan coba lagi nanti atau hubungi Admin.";
+    }
+    return `⚠️ Maaf, Hunter sedang mengalami gangguan teknis: ${error.message.substring(0, 50)}...`;
   }
 }
 
