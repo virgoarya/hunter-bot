@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, Events } = require("discord.js");
 
 const client = new Client({
   intents: [
@@ -90,7 +90,7 @@ async function registerSlashCommands() {
 }
 
 // === Bot Ready ===
-client.once("ready", async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`\n✅ Hunter Bot logged in as ${client.user.tag}`);
   console.log(`🤖 AI Model: ${process.env.OPENROUTER_MODEL}`);
   console.log(`📡 Channels: AI=${process.env.AI_CHANNEL_ID} | Macro=${process.env.MACRO_CHANNEL_ID}\n`);
