@@ -1,3 +1,4 @@
+require("dotenv").config();
 const axios = require("axios");
 
 /**
@@ -5,6 +6,7 @@ const axios = require("axios");
  * Failover Sequence: OpenRouter -> Google Gemini -> NVIDIA Nemotron (OpenRouter)
  */
 async function postToAI(messages, options = {}) {
+    // Read keys inside the function to ensure they are current
     const primaryModel = process.env.OPENROUTER_MODEL || "arcee-ai/trinity-large-preview:free";
     const apiKeyOR = process.env.OPENROUTER_API_KEY;
     const apiKeyGemini = process.env.GEMINI_API_KEY;
