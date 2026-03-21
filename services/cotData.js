@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 // CFTC Combined Futures-Only Short Format (easier to parse)
-const CFTC_CSV_URL = "https://www.cftc.gov/dea/newcot/deafut.txt";
+const CFTC_CSV_URL = "https://cftc.gov/dea/newcot/deafut.txt";
 
 const CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (COT updates weekly)
 let cotCache = { data: null, updatedAt: 0 };
@@ -52,31 +52,19 @@ async function fetchCFTCReport(url, retries = 3) {
                 timeout: 30000,
                 responseType: "text",
                 headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                    "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache",
-                    "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                    "Sec-Ch-Ua-Mobile": "?0",
-                    "Sec-Ch-Ua-Platform": '"Windows"',
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Sec-Fetch-User": "?1",
-                    "Upgrade-Insecure-Requests": "1"
+                    "User-Agent": "PostmanRuntime/7.35.0",
+                    "Accept": "*/*",
+                    "Cache-Control": "no-cache"
                 },
             });
 
-            if (response.data) return response.data;
+            if (response.data && response.data.includes("WHEAT")) return response.data;
         } catch (error) {
             console.warn(`⚠️ CFTC fetch attempt ${i + 1} failed:`, error.message);
             if (i < retries - 1) {
                 const delay = (i + 1) * 2000;
                 console.log(`⏳ Retrying in ${delay / 1000}s...`);
                 await new Promise(r => setTimeout(r, delay));
-            } else {
-                console.error(`❌ All ${retries} attempts to fetch CFTC failed.`);
             }
         }
     }
