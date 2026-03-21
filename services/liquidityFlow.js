@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { fetchYahooPrice } = require("./yahooFinance");
+const { fetchStooqPrice } = require("./stooqService");
 const { fetchRepoData } = require("./repoService");
 
 const CACHE_MS = 2 * 60 * 1000; // 2 minutes cache
@@ -24,7 +25,14 @@ async function fetchLiquidityFlow(forceRefresh = false) {
 
   for (const instrument of FLOW_INSTRUMENTS) {
     try {
-      const data = await fetchYahooPrice(instrument.symbol);
+      // Try Stooq First (Primary)
+      let data = await fetchStooqPrice(instrument.symbol);
+
+      // Fallback to Yahoo if Stooq fails
+      if (!data || !data.close) {
+        console.log(`⚠️ Stooq unavailable for ${instrument.symbol}, falling back to Yahoo...`);
+        data = await fetchYahooPrice(instrument.symbol);
+      }
 
       if (data && data.close) {
         const changeNum = parseFloat(data.change) || 0;

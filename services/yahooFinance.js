@@ -74,10 +74,11 @@ async function fetchYahooPrice(symbol) {
             provider: "Yahoo Finance",
         };
     } catch (error) {
-        console.error(
-            `Yahoo Finance error for ${symbol} (${yahooSym}):`,
-            error.message
-        );
+        if (error.response?.status === 404) {
+             console.warn(`⚠️ Yahoo Finance: Symbol ${yahooSym} not found or market closed (404).`);
+        } else {
+             console.warn(`⚠️ Yahoo Finance error for ${symbol} (${yahooSym}): ${error.message}`);
+        }
         return null;
     }
 }
