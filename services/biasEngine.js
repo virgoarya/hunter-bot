@@ -1,7 +1,11 @@
 const { getAdaptiveThresholds } = require("./adaptiveThresholds");
+const { getSeasonalTendency } = require("./seasonality");
 
 function buildBias(macro, regimeObj, thresholds = {}) {
-  if (!macro) return { usdBias: "N/A", goldBias: "N/A", equityBias: "N/A" };
+  const currentMonth = new Date().getMonth();
+  const seasonal = getSeasonalTendency(currentMonth);
+
+  if (!macro) return { usdBias: "N/A", goldBias: "N/A", equityBias: "N/A", seasonality: seasonal };
 
   // Get Adaptive Thresholds
   const yTh = getAdaptiveThresholds("US10Y", { high: 4.2, low: 3.8, mean: 4.0 });
@@ -66,7 +70,18 @@ function buildBias(macro, regimeObj, thresholds = {}) {
     equityBias = "Slight Bearish";
   }
 
-  return { usdBias, goldBias, equityBias };
+  // === 5. SEASONAL MODIFIER (Tilt neutral bias based on month) ===
+  if (usdBias === "Netral" && seasonal.usd !== "Neutral") {
+    usdBias = `Slight ${seasonal.usd} (Musiman)`;
+  }
+  if (goldBias === "Netral" && seasonal.gold !== "Neutral") {
+    goldBias = `Slight ${seasonal.gold} (Musiman)`;
+  }
+  if (equityBias === "Netral" && seasonal.equity !== "Neutral") {
+    equityBias = `Slight ${seasonal.equity} (Musiman)`;
+  }
+
+  return { usdBias, goldBias, equityBias, seasonality: seasonal };
 }
 
 module.exports = { buildBias };

@@ -1,4 +1,5 @@
 function buildNarrative(regime = {}, bias = {}, intent = {}, shift = null) {
+  const seasonality = bias.seasonality || {};
 
   const regimeText = regime?.regime || "";
   const intentText = intent?.intent || "";
@@ -41,12 +42,17 @@ function buildNarrative(regime = {}, bias = {}, intent = {}, shift = null) {
     return "Modal berputar ke aset pertumbuhan seiring membaiknya kondisi likuiditas.";
   }
 
-  // === DEFAULT REGIME STORY ===
+  let baseNarrative = "Posisi pasar tetap seimbang tanpa niat institusional yang dominan.";
   if (regimeText.includes("Defensif")) {
-    return "Institusi mempertahankan perlindungan sambil memonitor kondisi likuiditas.";
+    baseNarrative = "Institusi mempertahankan perlindungan sambil memonitor kondisi likuiditas.";
   }
 
-  return "Posisi pasar tetap seimbang tanpa niat institusional yang dominan.";
+  // === SEASONAL CONTEXT ===
+  if (seasonality.note) {
+    return `${baseNarrative} Secara historis, bulan ini dipengaruhi oleh: ${seasonality.note}.`;
+  }
+
+  return baseNarrative;
 }
 
 module.exports = { buildNarrative };
