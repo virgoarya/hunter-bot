@@ -153,6 +153,13 @@ Konteks Makro:
 - EMAS: ${state.GOLD?.close ?? "N/A"}
 ` : "Konteks likuiditas diperlukan untuk menentukan bias arah.";
 
+        // Check if we already have a cached interpretation for this report date
+        const existingSnapshot = cotHistory.find(snap => snap.date === cotData.reportDate);
+        if (existingSnapshot && existingSnapshot.interpretation) {
+            console.log(`🤖 Using cached AI interpretation for ${cotData.reportDate}`);
+            return existingSnapshot.interpretation;
+        }
+
         const response = await axios.post(
             "https://openrouter.ai/api/v1/chat/completions",
             {
@@ -197,10 +204,26 @@ Akhiri dengan kalimat:
             }
         );
 
-        return response.data.choices[0].message.content;
+        const interpretation = response.data.choices[0].message.content;
+
+        // Cache the interpretation if we found a snapshot
+        if (existingSnapshot) {
+            existingSnapshot.interpretation = interpretation;
+            saveHistory();
+        }
+
+        return interpretation;
     } catch (error) {
-        console.error("COT AI interpretation error:", error.message);
-        return "Interpretasi AI tidak tersedia saat ini.";
+        const errorData = error.response?.data?.error || {};
+        console.error("❌ COT AI Error Detail:", errorData.message || error.message);
+        
+        if (error.response?.status === 402 || (error.response?.status === 429 && errorData.message?.includes("credits"))) {
+            return "❌ [OpenRouter] Saldo/Credit habis. Tambahkan minimal $5 di OpenRouter untuk kuota 1000 free-request/hari.";
+        }
+        if (error.response?.status === 429) {
+            return "⚠️ [OpenRouter] Limit harian tercapai. Coba lagi besok atau tambahkan saldo OpenRouter.";
+        }
+        return "Interpretasi AI tidak tersedia saat ini. Periksa koneksi API atau saldo OpenRouter.";
     }
 }
 
