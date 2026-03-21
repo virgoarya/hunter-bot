@@ -176,20 +176,26 @@ async function buildCOTBroadcast() {
     let description = `**Tanggal Laporan (CFTC):** ${cotData.reportDate}\n` +
                       `_Data ini mingguan, diambil dari laporan resmi CFTC (deafut.txt). Gunakan untuk baca positioning, bukan intraday timing._\n\n`;
 
-    // Contracts
-    const topContracts = cotData.contracts.slice(0, 12); // Show more/all
-    let contractList = "";
-    for (const c of topContracts) {
-        let line = `**${c.name}**: ${c.sentiment} (Net: ${c.speculator.net.toLocaleString()})`;
-        
-        // Append MarketBull Index if available
-        if (c.marketBull && c.marketBull.cotIndex6M !== "N/A") {
-            line += `\n   ┗ 📊 **Index: ${c.marketBull.cotIndex6M}** | [Chart](${c.marketBull.chartUrl})`;
+    // Contracts - Split by category
+    const forex = cotData.contracts.filter(c => c.category === "forex");
+    const others = cotData.contracts.filter(c => c.category !== "forex");
+
+    const buildList = (list) => {
+        let text = "";
+        for (const c of list) {
+            let line = `**${c.name}**: ${c.sentiment} (Net: ${c.speculator.net.toLocaleString()})`;
+            if (c.marketBull && c.marketBull.cotIndex6M !== "N/A") {
+                line += `\n   ┗ 📊 **Index: ${c.marketBull.cotIndex6M}** | [Chart](${c.marketBull.chartUrl})`;
+            }
+            text += line + "\n";
         }
-        
-        contractList += line + "\n";
-    }
-    embed.addFields({ name: "📝 Recap Positioning & Index", value: contractList || "Tidak ada data", inline: false });
+        return text || "Tidak ada data";
+    };
+
+    embed.addFields(
+        { name: "📝 Recap Positioning (Currencies)", value: buildList(forex), inline: false },
+        { name: "📝 Recap Positioning (Commodities & Indices)", value: buildList(others), inline: false }
+    );
 
     // Meta info in description
     embed.setDescription(description);
@@ -199,15 +205,29 @@ async function buildCOTBroadcast() {
     if (analysis) {
         const interpretation = await generateCOTInterpretation(cotData, analysis);
         if (interpretation) {
-            // Split interpretation if it exceeds 1024 chars (Discord limit)
-            const chunks = interpretation.match(/[\s\S]{1,1024}/g) || [];
-            chunks.forEach((chunk, index) => {
-                embed.addFields({ 
-                    name: index === 0 ? "🧠 Analisis Institusional (Follow CTA & Macro Reasoning)" : "\u200B", 
-                    value: chunk, 
-                    inline: false 
+    if (analysis) {
+        const interpretation = await generateCOTInterpretation(cotData, analysis);
+        if (interpretation) {
+            // Smart split: Split by sections or sentences to avoid mid-word cuts
+            const sections = interpretation.split(/\n(?=🔍|🧠|🎯)/g); // Split by icons
+            
+            for (let section of sections) {
+                // If a section is still > 1024, split by sentence
+                const chunks = section.match(/[\s\S]{1,1024}(?:\.|\n|$)/g) || [section];
+                chunks.forEach((chunk, index) => {
+                    if (chunk.trim()) {
+                        embed.addFields({ 
+                            name: index === 0 && section.startsWith("🔍") ? "🔍 Analisis Posisi CTA" : 
+                                  index === 0 && section.startsWith("🧠") ? "🧠 Macro Reasoning" :
+                                  index === 0 && section.startsWith("🎯") ? "🎯 Smart Money Insight" : "\u200B", 
+                            value: chunk.substring(0, 1024), 
+                            inline: false 
+                        });
+                    }
                 });
-            });
+            }
+        }
+    }
         }
     }
 

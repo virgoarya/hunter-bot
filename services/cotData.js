@@ -12,17 +12,17 @@ const { fetchMarketBullCOT } = require("./marketBullScraper");
 
 // Contract names to track (partial match in CFTC report)
 const TRACKED_CONTRACTS = [
-    { search: "EURO FX", alias: "EUR/USD", category: "forex" },
-    { search: "BRITISH POUND", alias: "GBP/USD", category: "forex" },
-    { search: "JAPANESE YEN", alias: "USD/JPY", category: "forex" },
-    { search: "AUSTRALIAN DOLLAR", alias: "AUD/USD", category: "forex" },
-    { search: "CANADIAN DOLLAR", alias: "USD/CAD", category: "forex" },
-    { search: "SWISS FRANC", alias: "USD/CHF", category: "forex" },
+    { search: "EURO FX", alias: "EUR/USD", category: "forex", marketBullKey: "eur" },
+    { search: "BRITISH POUND", alias: "GBP/USD", category: "forex", marketBullKey: "gbp" },
+    { search: "JAPANESE YEN", alias: "USD/JPY", category: "forex", marketBullKey: "jpy" },
+    { search: "AUSTRALIAN DOLLAR", alias: "AUD/USD", category: "forex", marketBullKey: "aud" },
+    { search: "CANADIAN DOLLAR", alias: "USD/CAD", category: "forex", marketBullKey: "cad" },
+    { search: "SWISS FRANC", alias: "USD/CHF", category: "forex", marketBullKey: "chf" },
     { search: "GOLD", alias: "GOLD", category: "commodity", marketBullKey: "gold" },
     { search: "SILVER", alias: "SILVER", category: "commodity" },
     { search: "CRUDE OIL", alias: "OIL", category: "commodity" },
-    { search: "E-MINI S&P 500", alias: "S&P 500", category: "index" },
-    { search: "NASDAQ-100", alias: "NASDAQ", category: "index" },
+    { search: "E-MINI S&P 500", alias: "S&P 500", category: "index", marketBullKey: "sp500" },
+    { search: "NASDAQ-100", alias: "NASDAQ", category: "index", marketBullKey: "nasdaq" },
     { search: "U.S. DOLLAR INDEX", alias: "USD Index", category: "index", marketBullKey: "usd" },
 ];
 

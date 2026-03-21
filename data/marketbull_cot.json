@@ -12,6 +12,38 @@
       "index36M": "43.1%",
       "netPosition": "+3,693",
       "url": "https://market-bulls.com/cot-report-us-dollar-usd/"
+    },
+    "eur": {
+      "index6M": "100%",
+      "url": "https://market-bulls.com/cot-report-euro-fx-eur/"
+    },
+    "gbp": {
+      "index6M": "70.4%",
+      "url": "https://market-bulls.com/cot-report-british-pound-gbp/"
+    },
+    "jpy": {
+      "index6M": "100%",
+      "url": "https://market-bulls.com/cot-report-japanese-yen-jpy/"
+    },
+    "aud": {
+      "index6M": "0%",
+      "url": "https://market-bulls.com/cot-report-australian-dollar-aud/"
+    },
+    "cad": {
+      "index6M": "17.5%",
+      "url": "https://market-bulls.com/cot-report-canadian-dollar-cad/"
+    },
+    "chf": {
+      "index6M": "13.8%",
+      "url": "https://market-bulls.com/cot-report-swiss-franc-chf/"
+    },
+    "sp500": {
+      "index6M": "37.8%",
+      "url": "https://market-bulls.com/cot-report-sp-500/"
+    },
+    "nasdaq": {
+      "index6M": "60.8%",
+      "url": "https://market-bulls.com/cot-report-nasdaq-100/"
     }
   }
 }

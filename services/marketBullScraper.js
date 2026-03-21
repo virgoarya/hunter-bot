@@ -5,7 +5,15 @@ const path = require("path");
 
 const ASSETS = {
     gold: "https://market-bulls.com/cot-report-gold/",
-    usd: "https://market-bulls.com/cot-report-us-dollar-usd/"
+    usd: "https://market-bulls.com/cot-report-us-dollar-usd/",
+    eur: "https://market-bulls.com/cot-report-euro-fx-eur/",
+    gbp: "https://market-bulls.com/cot-report-british-pound-gbp/",
+    jpy: "https://market-bulls.com/cot-report-japanese-yen-jpy/",
+    aud: "https://market-bulls.com/cot-report-australian-dollar-aud/",
+    cad: "https://market-bulls.com/cot-report-canadian-dollar-cad/",
+    chf: "https://market-bulls.com/cot-report-swiss-franc-chf/",
+    sp500: "https://market-bulls.com/cot-report-sp-500/",
+    nasdaq: "https://market-bulls.com/cot-report-nasdaq-100/"
 };
 
 const MIRROR_FILE = path.join(__dirname, "../data/marketbull_cot.json");
