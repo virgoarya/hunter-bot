@@ -31,7 +31,7 @@ async function fetchFromTelegram() {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             },
-            timeout: 10000
+            timeout: 5000
         });
 
         const $ = cheerio.load(response.data);
@@ -117,7 +117,7 @@ async function fetchLatestTweets() {
                     headers: {
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                     },
-                    timeout: 10000
+                    timeout: 3000 // Faster timeout for mirrors
                 });
                 if (response && response.data) {
                     const $ = cheerio.load(response.data, { xmlMode: true });
@@ -132,7 +132,7 @@ async function fetchLatestTweets() {
                     if (items.length > 0) break;
                 }
             } catch (err) {
-                console.log(`⚠️ Nitter Fetch failed for ${url}: ${err.message}`);
+                console.log(`[Twitter-Retry] Mirror failing: ${url} (${err.message})`);
             }
         }
 
