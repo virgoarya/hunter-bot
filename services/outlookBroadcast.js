@@ -274,25 +274,12 @@ Instruksi:
 - Jelaskan implikasi praktis untuk trader intraday/swing (tanpa rekomendasi spesifik entry/SL).
 - Jelaskan apa yang paling perlu dipantau hari ini (data, level, atau reaksi pasar), secara naratif saja.`;
 
-        const response = await axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                model: process.env.OPENROUTER_MODEL,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userContent },
-                ],
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-                timeout: 30000,
-            }
-        );
+        const { postToOpenRouter } = require("../utils/openRouterProxy");
+        const responseData = await postToOpenRouter(messages, {
+            temperature: 0.3
+        });
 
-        return response.data.choices[0].message.content;
+        return responseData.choices[0].message.content;
     } catch (error) {
         console.error("Outlook AI error:", error.message);
         return null;

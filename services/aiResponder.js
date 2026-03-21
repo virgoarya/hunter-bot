@@ -325,25 +325,12 @@ ${calendarText}
 
     messages.push({ role: "user", content: question });
 
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: process.env.OPENROUTER_MODEL,
-        messages,
-        temperature: isAnalysisMode ? 0 : 0.7,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://github.com/HunterBot",
-          "X-Title": "HunterBot Discord",
-          "Content-Type": "application/json",
-        },
-        timeout: 60000,
-      }
-    );
+    const { postToOpenRouter } = require("../utils/openRouterProxy");
+    const response = await postToOpenRouter(messages, {
+        temperature: isAnalysisMode ? 0 : 0.7
+    });
 
-    return response.data.choices[0].message.content;
+    return response.choices[0].message.content;
   } catch (error) {
     console.error("OpenRouter API Error:", error.response?.data || error.message);
     return "⚠️ Maaf, Hunter sedang mengalami gangguan koneksi. Silakan coba lagi nanti.";

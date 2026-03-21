@@ -160,51 +160,12 @@ Konteks Makro:
             return existingSnapshot.interpretation;
         }
 
-        const response = await axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                model: process.env.OPENROUTER_MODEL,
-                messages: [
-                    {
-                        role: "system",
-                        content: `Kamu adalah analis institutional desk profesional. Tugasmu adalah memberikan "Smart Money Insight" berdasarkan data COT (fokus pada Leveraged Funds/CTA) dan menghubungkannya dengan kondisi makro.
+        const { postToOpenRouter } = require("../utils/openRouterProxy");
+        const responseData = await postToOpenRouter(messages, {
+            temperature: 0.2 // More stable for analysis
+        });
 
-ATURAN ANALISIS:
-1. SMART MONEY FOCUS: Tekankan pada pergerakan "Leveraged Funds" (CTA) karena mereka adalah pencari profit (speculator) yang paling aktif.
-2. MACRO REASONING: Untuk tiap aset, jelaskan MENGAPA posisi tersebut berubah berdasarkan data makro di input (DXY, Yield, VIX). Contoh: "CTA mengurangi posisi Gold karena Real Yield naik (biaya peluang memegang emas meningkat)".
-3. JANGAN menambah angka baru atau sumber data eksternal. Gunakan hanya angka yang ada di input.
-4. Bahasa: Indonesia (dengan istilah teknis tetap Inggris).
-
-FORMAT OUTPUT WAJIB:
-
-🔍 ANALISIS POSISI CTA (SMART MONEY):
-- [Aset]: [Interpretasi pergeseran posisi vs crowding]
-
-🧠 MACRO REASONING (ALASAN FUNDAMENTAL):
-- [Penjelasan mengapa CTA masuk/keluar dari aset tersebut berdasarkan korelasi dengan DXY/Yield/VIX di input]
-
-🎯 SMART MONEY INSIGHT (FOLLOW CTA):
-- [Rangkuman: Aset mana yang paling menarik untuk diikuti (Follow CTA) dan apa risiko squeeze-nya secara kondisional]
-
-Akhiri dengan kalimat:
-"Ini interpretasi berbasis data COT mingguan, bukan sinyal entry/exit spesifik."`,
-                    },
-                    {
-                        role: "user",
-                        content: `Data COT/Macro:\n${cotSummary}\n\n${macroContext}`,
-                    },
-                ],
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-                timeout: 30000,
-            }
-        );
-
-        const interpretation = response.data.choices[0].message.content;
+        const interpretation = responseData.choices[0].message.content;
 
         // Cache the interpretation if we found a snapshot
         if (existingSnapshot) {
