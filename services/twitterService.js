@@ -4,7 +4,14 @@ const fs = require("fs");
 const path = require("path");
 
 const CACHE_FILE = path.join(__dirname, "../twitter_cache.json");
-const RSS_URL = "https://nitter.perennialte.ch/KobeissiLetter/rss";
+const RSS_URLS = [
+    "https://nitter.perennialte.ch/KobeissiLetter/rss",
+    "https://nitter.poast.org/KobeissiLetter/rss",
+    "https://nitter.lucabased.xyz/KobeissiLetter/rss",
+    "https://nitter.soopy.moe/KobeissiLetter/rss",
+    "https://nitter.cz/KobeissiLetter/rss",
+    "https://nitter.net/KobeissiLetter/rss"
+];
 
 function loadCache() {
     try {
@@ -64,12 +71,26 @@ Postingan Twitter:
 async function fetchLatestTweets() {
     try {
         console.log("🐦 Fetching feeds from @KobeissiLetter via Nitter RSS...");
-        const response = await axios.get(RSS_URL, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            },
-            timeout: 15000
-        });
+        let response = null;
+
+        for (const url of RSS_URLS) {
+            try {
+                response = await axios.get(url, {
+                    headers: {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    },
+                    timeout: 10000
+                });
+                // If successful, break out of the loop
+                break;
+            } catch (err) {
+                console.log(`⚠️ Fetch failed for ${url}: ${err.message}`);
+            }
+        }
+
+        if (!response || !response.data) {
+            throw new Error("All Nitter instances failed to fetch tweets.");
+        }
 
         const $ = cheerio.load(response.data, { xmlMode: true });
         const items = [];
