@@ -1,3 +1,5 @@
+const { getAdaptiveThresholds } = require("./adaptiveThresholds");
+
 function classifyRegime(state) {
   if (!state?.DXY || !state?.US10Y || !state?.NASDAQ || !state?.GOLD || !state?.VIX) {
     return {
@@ -6,75 +8,73 @@ function classifyRegime(state) {
     };
   }
 
+  // Get Adaptive Thresholds
+  const vTh = getAdaptiveThresholds("VIX", { high: 28, veryHigh: 35, low: 16, mean: 20 });
+  const yTh = getAdaptiveThresholds("US10Y", { high: 4.2, low: 3.8, mean: 4.0 });
+  const dTh = getAdaptiveThresholds("DXY", { high: 102, low: 100, mean: 101 });
+
   const dxy = state.DXY.close;
   const us10y = state.US10Y.close;
-  const realYield = state.RealYield?.close || (us10y - 2.0);
   const vix = state.VIX.close;
 
-  // Deteksi Perubahan (Jika provider menyediakan 'change', gunakan itu. Jika tidak, asumsikan netral untuk kestabilan)
+  // Deteksi Perubahan
   const nasdaqChange = parseFloat(state.NASDAQ.change) || 0;
-  const yieldChange = parseFloat(state.US10Y.change) || 0;
   const goldChange = parseFloat(state.GOLD.change) || 0;
 
   // ON RRP liquidity signal
   const repoData = state.RepoData;
   const repoChange = repoData && !repoData.error ? parseFloat(repoData.changePercent) || 0 : 0;
-  const isRepoRiskOff = repoChange > 5;   // Institutions parking more cash at Fed
-  const isRepoRiskOn = repoChange < -5;   // Institutions pulling cash from Fed into market
+  const isRepoRiskOff = repoChange > 5;
+  const isRepoRiskOn = repoChange < -5;
 
-  // === 1. SYSTEMIC PANIC (VIX Driven) ===
-  // Prioritas utama: Ketika volatilitas meledak, korelasi antar aset biasanya menjadi 1 (semua dijual).
-  if (vix > 28 || (vix > 24 && isRepoRiskOff)) {
+  // === 1. SYSTEMIC PANIC (Adaptive VIX Driven) ===
+  if (vix > vTh.veryHigh || (vix > vTh.high && isRepoRiskOff)) {
     return {
       regime: "Kepanikan Sistemik 🚨",
-      description: "Ekspansi volatilitas ekstrem. Likuidasi paksa di semua kelas aset. Cash (USD) adalah raja." +
+      description: `Ekspansi volatilitas ekstrem (VIX > ${vTh.high.toFixed(1)}). Likuidasi paksa di semua kelas aset.` +
         (isRepoRiskOff ? " ON RRP meningkat — institusi berlindung di The Fed." : "")
     };
   }
 
-  // === 2. STAGFLATIONARY STRESS (Yields Up + Equities Down + Gold Strong) ===
-  // Inflasi panas yang mulai merusak pertumbuhan (Bad for Equities, Good for Gold/USD)
-  if (us10y > 4.2 && nasdaqChange < -0.5 && goldChange > 0) {
+  // === 2. STAGFLATIONARY STRESS ===
+  if (us10y > yTh.high && nasdaqChange < -0.5 && goldChange > 0) {
     return {
       regime: "Stagflasi ⚠️",
-      description: "Tekanan inflasi merusak valuasi ekuitas. Imbal hasil naik tajam sementara Emas dicari sebagai pelindung nilai."
+      description: `Tekanan inflasi (Yield > ${yTh.high.toFixed(2)}%) merusak valuasi ekuitas. Emas dicari sebagai pelindung nilai.`
     };
   }
 
-  // === 3. DEFLATIONARY SHOCK / GROWTH FEAR (Yields Down + Equities Down) ===
-  // Ketakutan akan resesi atau perlambatan ekonomi (Bonds Up/Yields Down, Equities Down)
-  if (us10y < 3.8 && nasdaqChange < -0.8) {
+  // === 3. DEFLATIONARY SHOCK ===
+  if (us10y < yTh.low && nasdaqChange < -0.8) {
     return {
       regime: "Goncangan Deflasi 📉",
-      description: "Kekhawatiran resesi mendominasi. Investor lari dari risiko ke obligasi pemerintah (Safe Haven)."
+      description: `Yield jatuh di bawah ${yTh.low.toFixed(2)}% menunjukkan ketakutan resesi mendominasi. Flight to safety.`
     };
   }
 
-  // === 4. REFLATION / HEALTHY GROWTH (Yields Up + Equities Up) ===
-  // Pertumbuhan ekonomi yang kuat memicu kenaikan yields dan laba perusahaan secara bersamaan.
-  if ((us10y > 4.0 && nasdaqChange > 0.3 && vix < 20) || (nasdaqChange > 0.3 && vix < 18 && isRepoRiskOn)) {
+  // === 4. REFLATION / HEALTHY GROWTH ===
+  if ((us10y > yTh.mean && nasdaqChange > 0.3 && vix < vTh.mean) || (nasdaqChange > 0.3 && vix < vTh.high && isRepoRiskOn)) {
     return {
       regime: "Reflasi 🚀",
-      description: "Pertumbuhan ekonomi yang optimis. Institusi melakukan akumulasi pada aset berisiko (Risk-On)." +
-        (isRepoRiskOn ? " ON RRP menurun — likuiditas mengalir kembali ke pasar." : "")
+      description: "Pertumbuhan ekonomi optimis. Akumulasi aset berisiko." +
+        (isRepoRiskOn ? " ON RRP menurun — likuiditas mengalir ke pasar." : "")
     };
   }
 
-  // === 5. GOLDILOCKS (Low Vol + Stable Yields + Equities Up) ===
-  // Skenario terbaik: Pertumbuhan tanpa inflasi berlebih.
-  if (vix < 16 && us10y > 3.5 && us10y < 4.2 && nasdaqChange >= 0) {
+  // === 5. GOLDILOCKS ===
+  if (vix < vTh.low && us10y > yTh.low && us10y < yTh.high && nasdaqChange >= 0) {
     return {
       regime: "Goldilocks ✨",
-      description: "Kondisi ideal. Pertumbuhan stabil dengan volatilitas rendah. Likuiditas melimpah."
+      description: `VIX rendah (<${vTh.low.toFixed(1)}) & Yield stabil. Kondisi ideal untuk aset berisiko.`
     };
   }
 
-  // === 6. DEFENSIVE / LIQUIDITY TIGHTENING ===
-  if (dxy > 102 || vix > 19 || (isRepoRiskOff && vix > 17)) {
+  // === 6. DEFENSIVE ===
+  if (dxy > dTh.high || vix > vTh.mean || (isRepoRiskOff && vix > vTh.low)) {
     return {
       regime: "Defensif 🛡️",
-      description: "Pengetatan likuiditas global. Institusi mengurangi eksposur dan meningkatkan kepemilikan uang tunai." +
-        (isRepoRiskOff ? " ON RRP meningkat — dana institusi kembali ke The Fed." : "")
+      description: `Pengetatan likuiditas global (DXY > ${dTh.high.toFixed(1)}). Institusi meningkatkan kepemilikan kas.` +
+        (isRepoRiskOff ? " ON RRP meningkat — dana kembali ke The Fed." : "")
     };
   }
 
@@ -84,4 +84,4 @@ function classifyRegime(state) {
   };
 }
 
-module.exports = { classifyRegime };
+module.exports = { classifyRegime };

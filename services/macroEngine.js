@@ -1,10 +1,13 @@
 const { updateMacroData, getMacroState } = require("./macroData");
+const { saveSnapshot } = require("./macroHistory");
 const { classifyRegime } = require("./regime");
 const { buildBias } = require("./biasEngine");
 const { buildSessionBias } = require("./sessionBias");
 const { detectIntent } = require("./intentEngine");
 const { detectRegimeShift } = require("./regimeTracker");
 const { buildNarrative } = require("./narrativeBuilder");
+const { detectCorrelationPatterns } = require("./correlationEngine");
+const { analyzeRateOfChange } = require("./rateOfChange");
 const { sendBiasBroadcast } = require("./broadcast");
 const { sendShiftAlert } = require('./shiftAlert');
 const { sendSessionAlert } = require('./sessionAlert');
@@ -21,6 +24,9 @@ async function runMacroCycle(client) {
     console.log("⚠️ Macro data unhealthy — skipping cycle");
     return;
   }
+
+  // Save history snapshot
+  saveSnapshot(state);
 
   // 2. Regime
   const regime = classifyRegime(state);
@@ -39,6 +45,10 @@ async function runMacroCycle(client) {
 
   // 7. Session (with repo data for liquidity context)
   const session = buildSessionBias(regime, bias, intent, state.RepoData);
+
+  // 10. Advanced Engines (New)
+  const correlation = detectCorrelationPatterns(state);
+  const rocShocks = analyzeRateOfChange(state);
 
   // 8. Alerts
   if (shift) {
@@ -60,7 +70,9 @@ async function runMacroCycle(client) {
     shift,
     intent,
     narrative,
-    state.RepoData
+    state.RepoData,
+    correlation,
+    rocShocks
   );
 }
 

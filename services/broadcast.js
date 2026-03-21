@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { buildTradingInsight } = require("./tradingInsight");
 
-async function sendBiasBroadcast(client, channelId, regime, bias, session, shift, intent, narrative, repoData) {
+async function sendBiasBroadcast(client, channelId, regime, bias, session, shift, intent, narrative, repoData, correlation, rocShocks) {
   const channel = await client.channels.fetch(channelId);
   if (!channel) return;
 
@@ -20,7 +20,7 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
     embedColor = "#3498db"; // Biru (Netral)
   }
 
-  const title = shift ? "🚨 PERUBAHAN REZIM INSTITUSIONAL" : "📊 PEMBARUAN MAKRO";
+  const title = shift ? "🚨 PERUBAHAN REZIM INSTITUSIONAL" : "📊 PEMBARUAN MAKRO ADAPTIF";
 
   // Generate trading insight
   const insight = buildTradingInsight(regime, bias, intent, repoData);
@@ -30,7 +30,7 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
     .setColor(embedColor)
     .setDescription(`**Narasi:**\n${narrative}`)
     .addFields(
-      { name: "📊 Rezim Makro", value: `**${regime.regime || "N/A"}**\n*${regime.description || ""}*`, inline: true },
+      { name: "📊 Rezim Makro (Adaptif)", value: `**${regime.regime || "N/A"}**\n*${regime.description || ""}*`, inline: true },
       { name: "🧠 Niat Pasar (Intent)", value: `**${intent.intent || "N/A"}**\n*${intent.description || ""}*`, inline: true }
     )
     .addFields({ name: "\u200B", value: "\u200B" }) // Spacer
@@ -38,8 +38,28 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
       { name: "💵 Bias USD", value: bias.usdBias || "Netral", inline: true },
       { name: "🥇 Bias Emas", value: bias.goldBias || "Netral", inline: true },
       { name: "📉 Bias Saham", value: bias.equityBias || "Netral", inline: true }
-    )
-    .addFields({ name: "\u200B", value: "\u200B" }) // Spacer
+    );
+
+  // Add Correlation Field if available
+  if (correlation && correlation.signal !== "NETRAL") {
+    embed.addFields(
+      { name: "🔗 Korelasi Antar-Aset", value: `**${correlation.signal}**\n*${correlation.description}*`, inline: false }
+    );
+  }
+
+  // Add Shocks Field if available
+  if (rocShocks) {
+    const shocks = Object.entries(rocShocks)
+      .filter(([_, data]) => data.hasShock)
+      .map(([symbol, data]) => `• **${symbol}**: ${data.shockType}`)
+      .join("\n");
+    
+    if (shocks) {
+      embed.addFields({ name: "⚡ Lonjakan Deteksi (Shocks)", value: shocks, inline: false });
+    }
+  }
+
+  embed.addFields({ name: "\u200B", value: "\u200B" }) // Spacer
     .addFields(
       { name: "🌏 Outlook Asia", value: session.asiaBias || "N/A", inline: false },
       { name: "🌍 Outlook London", value: session.londonBias || "N/A", inline: false },
@@ -50,7 +70,7 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
       { name: "🎯 INSIGHT POSISI TRADING", value: insight.text, inline: false }
     )
     .setTimestamp()
-    .setFooter({ text: "Hunter Bot • Intelijen Institusional" });
+    .setFooter({ text: "Hunter Bot • Dynamic Intelligence" });
 
   if (shift) {
     embed.addFields(
@@ -60,5 +80,6 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
 
   await channel.send({ embeds: [embed] });
 }
+
 
 module.exports = { sendBiasBroadcast };

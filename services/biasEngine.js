@@ -1,8 +1,15 @@
+const { getAdaptiveThresholds } = require("./adaptiveThresholds");
+
 function buildBias(macro, regimeObj, thresholds = {}) {
   if (!macro) return { usdBias: "N/A", goldBias: "N/A", equityBias: "N/A" };
 
-  const defaults = { dxyHigh: 101.5, dxyLow: 99.5, us10yHigh: 4.2, us10yLow: 3.8, vixHigh: 22, realLow: 1.4, realHigh: 1.9 };
-  const th = { ...defaults, ...thresholds };
+  // Get Adaptive Thresholds
+  const yTh = getAdaptiveThresholds("US10Y", { high: 4.2, low: 3.8, mean: 4.0 });
+  const vTh = getAdaptiveThresholds("VIX", { high: 22, low: 16, mean: 19 });
+  const rTh = getAdaptiveThresholds("RealYield", { high: 1.9, low: 1.4, mean: 1.65 });
+
+  const dTh = { dxyHigh: 101.5, dxyLow: 99.5 };
+  const th = { ...yTh, ...vTh, ...rTh, ...dTh, ...thresholds };
 
   const dxy = macro.DXY?.close ?? 0;
   const vix = macro.VIX?.close ?? 0;
@@ -18,10 +25,9 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   const regime = regimeObj?.regime ?? "";
 
   // === 1. USD BIAS (Carry vs Safety) ===
-  // Bullish jika Yields tinggi (Carry) atau saat Kepanikan/Tekanan (Safe Haven).
-  if (us10y > th.us10yHigh || regime.includes("Kepanikan") || regime.includes("Tekanan")) {
+  if (us10y > th.high || regime.includes("Kepanikan") || regime.includes("Tekanan")) {
     usdBias = (regime.includes("Kepanikan") || regime.includes("Tekanan")) ? "Strong Bullish" : "Bullish";
-  } else if (us10y < th.us10yLow && dxy < th.dxyLow) {
+  } else if (us10y < th.low && dxy < th.dxyLow) {
     usdBias = "Bearish";
   }
 
@@ -29,30 +35,26 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   if (nasdaq) {
     if (regime.includes("Reflasi") || regime.includes("Goldilocks") || regime.includes("Pertumbuhan")) {
       equityBias = "Bullish";
-    } else if (regime.includes("Stagflasi") || regime.includes("Goncangan") || regime.includes("Kepanikan") || vix > th.vixHigh) {
+    } else if (regime.includes("Stagflasi") || regime.includes("Goncangan") || regime.includes("Kepanikan") || vix > th.high) {
       equityBias = "Bearish";
     }
-  } else if (vix > 20) {
+  } else if (vix > th.high) {
     equityBias = "Bearish";
   }
 
   // === 3. GOLD BIAS (Real Yields & Safe Haven) ===
-  // Sensitivitas tinggi terhadap Real Yields (Biaya Peluang).
-  if (realYield < th.realLow || regime.includes("Stagflasi") || regime.includes("Goncangan")) {
+  if (realYield < th.low || regime.includes("Stagflasi") || regime.includes("Goncangan")) {
     goldBias = "Bullish";
-    // If ON RRP is dropping (money leaving Fed), gold safe-haven demand weakens
     if (repoChange < -5) goldBias = "Netral / Rotasi";
-  } else if (realYield > th.realHigh && usdBias === "Bullish") {
+  } else if (realYield > th.high && usdBias === "Bullish") {
     goldBias = "Bearish";
   } else if (regime.includes("Kepanikan")) {
     goldBias = "Netral / Volatil";
   } else if (repoChange > 5) {
-    // ON RRP rising = institutions park cash = potential flight to safe haven
     goldBias = goldBias === "Netral" ? "Slight Bullish" : goldBias;
   }
 
   // === 4. EQUITY BIAS ON RRP MODIFIER ===
-  // Falling ON RRP = fresh liquidity entering market = equity tailwind
   if (repoChange < -5 && equityBias === "Netral") {
     equityBias = "Slight Bullish";
   } else if (repoChange > 10 && equityBias === "Netral") {
@@ -63,3 +65,4 @@ function buildBias(macro, regimeObj, thresholds = {}) {
 }
 
 module.exports = { buildBias };
+

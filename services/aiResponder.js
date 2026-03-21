@@ -7,6 +7,8 @@ const { fetchEconomicCalendar } = require("./economicCalendar");
 const { fetchLiquidityFlow } = require("./liquidityFlow");
 const { fetchCOTData } = require("./cotData");
 const { getHistory } = require("./conversationMemory");
+const { detectCorrelationPatterns } = require("./correlationEngine");
+const { analyzeRateOfChange } = require("./rateOfChange");
 
 function isMacroStateStale(state, staleMs = 5 * 60 * 1000) {
   const updatedAt = state?.updatedAt ? new Date(state.updatedAt).getTime() : 0;
@@ -251,6 +253,8 @@ async function generateReply(question, userId) {
     const regime = classifyRegime(state);
     const bias = buildBias(state, regime);
     const { activeSession, flowNarrative } = getSessionFlow(bias);
+    const correlation = detectCorrelationPatterns(state);
+    const rocShocks = analyzeRateOfChange(state);
     const calendar = await fetchEconomicCalendar();
     
     // Filter calendar: Include last 12 hours + future events up to 3 days
@@ -287,6 +291,7 @@ async function generateReply(question, userId) {
 DATA PASAR REAL-TIME:
 - REZIM: ${regime.regime} (${regime.description})
 - BIAS USD: ${bias.usdBias} | EMAS: ${bias.goldBias} | SAHAM: ${bias.equityBias}
+- KORELASI: ${correlation?.signal || "NETRAL"} (${correlation?.description || "N/A"})
 - SESI AKTIF: ${activeSession} | NARASI FLUX: ${flowNarrative}
 
 DETAIL INSTRUMEN:
@@ -299,6 +304,9 @@ DETAIL INSTRUMEN:
 - VIX: ${state?.VIX ? parseFloat(state.VIX.close).toFixed(2) : "N/A"}
 ${flowContext}
 ${cotContext}
+
+MARKET SHOCKS (24H MOMENTUM):
+${Object.entries(rocShocks || {}).filter(([_, d]) => d.hasShock).map(([s, d]) => `• ${s}: ${d.shockType}`).join("\n") || "No immediate shocks detected."}
 
 KALENDER EKONOMI TERBARU:
 ${calendarText}
