@@ -37,8 +37,8 @@ async function runMacroCycle(client) {
   // 6. Narrative
   const narrative = buildNarrative(regime, bias, intent, shift);
 
-  // 7. Session
-  const session = buildSessionBias(regime, bias, intent);
+  // 7. Session (with repo data for liquidity context)
+  const session = buildSessionBias(regime, bias, intent, state.RepoData);
 
   // 8. Alerts
   if (shift) {

@@ -16,12 +16,19 @@ function classifyRegime(state) {
   const yieldChange = parseFloat(state.US10Y.change) || 0;
   const goldChange = parseFloat(state.GOLD.change) || 0;
 
+  // ON RRP liquidity signal
+  const repoData = state.RepoData;
+  const repoChange = repoData && !repoData.error ? parseFloat(repoData.changePercent) || 0 : 0;
+  const isRepoRiskOff = repoChange > 5;   // Institutions parking more cash at Fed
+  const isRepoRiskOn = repoChange < -5;   // Institutions pulling cash from Fed into market
+
   // === 1. SYSTEMIC PANIC (VIX Driven) ===
   // Prioritas utama: Ketika volatilitas meledak, korelasi antar aset biasanya menjadi 1 (semua dijual).
-  if (vix > 28) {
+  if (vix > 28 || (vix > 24 && isRepoRiskOff)) {
     return {
       regime: "Kepanikan Sistemik 🚨",
-      description: "Ekspansi volatilitas ekstrem. Likuidasi paksa di semua kelas aset. Cash (USD) adalah raja."
+      description: "Ekspansi volatilitas ekstrem. Likuidasi paksa di semua kelas aset. Cash (USD) adalah raja." +
+        (isRepoRiskOff ? " ON RRP meningkat — institusi berlindung di The Fed." : "")
     };
   }
 
@@ -45,10 +52,11 @@ function classifyRegime(state) {
 
   // === 4. REFLATION / HEALTHY GROWTH (Yields Up + Equities Up) ===
   // Pertumbuhan ekonomi yang kuat memicu kenaikan yields dan laba perusahaan secara bersamaan.
-  if (us10y > 4.0 && nasdaqChange > 0.3 && vix < 20) {
+  if ((us10y > 4.0 && nasdaqChange > 0.3 && vix < 20) || (nasdaqChange > 0.3 && vix < 18 && isRepoRiskOn)) {
     return {
       regime: "Reflasi 🚀",
-      description: "Pertumbuhan ekonomi yang optimis. Institusi melakukan akumulasi pada aset berisiko (Risk-On)."
+      description: "Pertumbuhan ekonomi yang optimis. Institusi melakukan akumulasi pada aset berisiko (Risk-On)." +
+        (isRepoRiskOn ? " ON RRP menurun — likuiditas mengalir kembali ke pasar." : "")
     };
   }
 
@@ -62,10 +70,11 @@ function classifyRegime(state) {
   }
 
   // === 6. DEFENSIVE / LIQUIDITY TIGHTENING ===
-  if (dxy > 102 || vix > 19) {
+  if (dxy > 102 || vix > 19 || (isRepoRiskOff && vix > 17)) {
     return {
       regime: "Defensif 🛡️",
-      description: "Pengetatan likuiditas global. Institusi mengurangi eksposur dan meningkatkan kepemilikan uang tunai."
+      description: "Pengetatan likuiditas global. Institusi mengurangi eksposur dan meningkatkan kepemilikan uang tunai." +
+        (isRepoRiskOff ? " ON RRP meningkat — dana institusi kembali ke The Fed." : "")
     };
   }
 

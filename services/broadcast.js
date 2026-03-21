@@ -37,6 +37,7 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
     )
     .addFields({ name: "\u200B", value: "\u200B" }) // Spacer
     .addFields(
+      { name: "🌏 Outlook Asia", value: session.asiaBias || "N/A", inline: false },
       { name: "🌍 Outlook London", value: session.londonBias || "N/A", inline: false },
       { name: "🇺🇸 Outlook New York", value: session.newyorkBias || "N/A", inline: false }
     )

@@ -5,6 +5,7 @@ const { classifyRegime } = require("./regime");
 const { buildBias } = require("./biasEngine");
 const { detectIntent } = require("./intentEngine");
 const { fetchLiquidityFlow, formatFlowSummary } = require("./liquidityFlow");
+const { fetchRepoData } = require("./repoService");
 const { fetchCOTData, formatCOTReport } = require("./cotData");
 const {
     analyzeCOTChanges,
@@ -35,6 +36,16 @@ async function buildMorningOutlook() {
     // AI-generated outlook analysis
     const aiOutlook = await generateOutlookAnalysis(state, regime, bias, intent);
 
+    // Fetch ON RRP for morning outlook
+    let repoLine = "";
+    try {
+        const repoData = await fetchRepoData();
+        if (repoData && !repoData.error) {
+            const sign = parseFloat(repoData.changePercent) > 0 ? "+" : "";
+            repoLine = ` | ON RRP: **$${repoData.amountBillion}B** (${sign}${repoData.changePercent}%)`;
+        }
+    } catch (e) {}
+
     const embed = new EmbedBuilder()
         .setTitle(`🌅 OUTLOOK PAGI — ${dateStr}`)
         .setColor("#3498db")
@@ -57,7 +68,7 @@ async function buildMorningOutlook() {
                     `GOLD: **${state?.GOLD?.close ?? "N/A"}** | ` +
                     `NASDAQ: **${state?.NASDAQ?.close ?? "N/A"}** | ` +
                     `US10Y: **${state?.US10Y?.close ?? "N/A"}%** | ` +
-                    `VIX: **${state?.VIX?.close ?? "N/A"}**`,
+                    `VIX: **${state?.VIX?.close ?? "N/A"}**` + repoLine,
                 inline: false
             }
         )
@@ -213,6 +224,7 @@ Level kunci (boleh disebut secara kualitatif, jangan tambah angka baru):
 
 Instruksi:
 - Jelaskan arah likuiditas (dolar, yield, risk sentiment) berdasarkan data di atas.
+- Jika data ON RRP tersedia, integrasikan analisisnya: apakah institusi memarkir uang di The Fed (risk-off) atau menariknya kembali ke pasar (risk-on).
 - Jelaskan implikasi praktis untuk trader intraday/swing (tanpa rekomendasi spesifik entry/SL).
 - Jelaskan apa yang paling perlu dipantau hari ini (data, level, atau reaksi pasar), secara naratif saja.`;
 

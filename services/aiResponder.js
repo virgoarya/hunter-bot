@@ -51,7 +51,7 @@ function getSessionFlow(bias) {
   const state = getMacroState();
   const regime = classifyRegime(state);
   const intent = { intent: "N/A", description: "N/A" };
-  const session = buildSessionBias(regime, bias, intent);
+  const session = buildSessionBias(regime, bias, intent, state.RepoData);
   const hour = new Date().getUTCHours();
 
   let activeSession = "Asia";
@@ -64,7 +64,7 @@ function getSessionFlow(bias) {
   } else if (activeSession === "New York") {
     flowNarrative = session.newyorkBias;
   } else {
-    flowNarrative = "Asian session consolidation or early pre-London positioning.";
+    flowNarrative = session.asiaBias;
   }
 
   return { activeSession, flowNarrative };

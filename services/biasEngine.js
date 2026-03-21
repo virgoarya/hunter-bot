@@ -10,6 +10,10 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   const realYield = macro.RealYield?.close ?? 0;
   const nasdaq = macro.NASDAQ?.close;
 
+  // ON RRP liquidity signal
+  const repoData = macro.RepoData;
+  const repoChange = repoData && !repoData.error ? parseFloat(repoData.changePercent) || 0 : 0;
+
   let usdBias = "Netral", goldBias = "Netral", equityBias = "Netral";
   const regime = regimeObj?.regime ?? "";
 
@@ -36,10 +40,23 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   // Sensitivitas tinggi terhadap Real Yields (Biaya Peluang).
   if (realYield < th.realLow || regime.includes("Stagflasi") || regime.includes("Goncangan")) {
     goldBias = "Bullish";
+    // If ON RRP is dropping (money leaving Fed), gold safe-haven demand weakens
+    if (repoChange < -5) goldBias = "Netral / Rotasi";
   } else if (realYield > th.realHigh && usdBias === "Bullish") {
     goldBias = "Bearish";
   } else if (regime.includes("Kepanikan")) {
     goldBias = "Netral / Volatil";
+  } else if (repoChange > 5) {
+    // ON RRP rising = institutions park cash = potential flight to safe haven
+    goldBias = goldBias === "Netral" ? "Slight Bullish" : goldBias;
+  }
+
+  // === 4. EQUITY BIAS ON RRP MODIFIER ===
+  // Falling ON RRP = fresh liquidity entering market = equity tailwind
+  if (repoChange < -5 && equityBias === "Netral") {
+    equityBias = "Slight Bullish";
+  } else if (repoChange > 10 && equityBias === "Netral") {
+    equityBias = "Slight Bearish";
   }
 
   return { usdBias, goldBias, equityBias };

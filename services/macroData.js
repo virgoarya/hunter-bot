@@ -2,6 +2,7 @@ require("dotenv").config();
 const axios = require("axios");
 const { fetchYahooPrice } = require("./yahooFinance");
 const { fetchStooqPrice } = require("./stooqService");
+const { fetchRepoData } = require("./repoService");
 
 let macroState = {};
 
@@ -36,6 +37,14 @@ async function updateMacroData() {
   const realYield = await fetchFREDSeries("DFII10", "RealYield");
   const ffr = await fetchFREDSeries("FEDFUNDS", "FFR");
 
+  // ON RRP from NY Fed
+  let repoData = null;
+  try {
+    repoData = await fetchRepoData();
+  } catch (err) {
+    console.warn("⚠️ Repo data fetch failed:", err.message);
+  }
+
   const results = {
     DXY: dxy,
     NASDAQ: nasdaq,
@@ -45,6 +54,7 @@ async function updateMacroData() {
     RealYield: realYield,
     FFR: ffr,
     VIX: vix,
+    RepoData: repoData,
   };
 
   const isHealthy = !!(
