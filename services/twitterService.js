@@ -5,13 +5,13 @@ const path = require("path");
 
 const CACHE_FILE = path.join(__dirname, "../twitter_cache.json");
 const RSS_URLS = [
+    "https://nitter.net/KobeissiLetter/rss",
     "https://nitter.perennialte.ch/KobeissiLetter/rss",
     "https://nitter.poast.org/KobeissiLetter/rss",
-    "https://nitter.lucabased.xyz/KobeissiLetter/rss",
-    "https://nitter.soopy.moe/KobeissiLetter/rss",
-    "https://nitter.cz/KobeissiLetter/rss",
-    "https://nitter.net/KobeissiLetter/rss"
+    "https://nitter.cz/KobeissiLetter/rss"
 ];
+
+const TELEGRAM_URL = "https://t.me/s/TheKobeissiLetter";
 
 function loadCache() {
     try {
@@ -21,7 +21,42 @@ function loadCache() {
     } catch (e) {
         console.error("Twitter cache load error:", e.message);
     }
-    return { lastTweetId: null };
+    return { lastNitterId: null, lastTelegramId: null };
+}
+
+async function fetchFromTelegram() {
+    try {
+        console.log("✈️ Nitter failed, falling back to Telegram Scraper...");
+        const response = await axios.get(TELEGRAM_URL, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            },
+            timeout: 10000
+        });
+
+        const $ = cheerio.load(response.data);
+        const items = [];
+
+        $(".tgme_widget_message_wrap").each((i, el) => {
+            const text = $(el).find(".tgme_widget_message_text").text();
+            const date = $(el).find(".tgme_widget_message_date time").attr("datetime");
+            const link = $(el).find(".tgme_widget_message_date").attr("href");
+
+            if (text && link) {
+                items.push({
+                    id: link, // Uses the message URL as a unique ID
+                    content: text,
+                    link: link,
+                    date: date
+                });
+            }
+        });
+
+        return items.reverse(); // Latest first for consistency with RSS processing
+    } catch (e) {
+        console.error("❌ Telegram fallback also failed:", e.message);
+        return [];
+    }
 }
 
 function saveCache(cache) {
@@ -64,15 +99,18 @@ Postingan Twitter:
         return response.data.choices[0].message.content.trim();
     } catch (error) {
         console.error("Translation error:", error.message);
-        return text; // Fallback to original
+        return text; 
     }
 }
 
 async function fetchLatestTweets() {
     try {
-        console.log("🐦 Fetching feeds from @KobeissiLetter via Nitter RSS...");
+        console.log("🐦 Fetching feeds from @KobeissiLetter...");
         let response = null;
+        let items = [];
+        let source = "nitter";
 
+        // Step 1: Try Nitter Instances
         for (const url of RSS_URLS) {
             try {
                 response = await axios.get(url, {
@@ -81,68 +119,69 @@ async function fetchLatestTweets() {
                     },
                     timeout: 10000
                 });
-                // If successful, break out of the loop
-                break;
+                if (response && response.data) {
+                    const $ = cheerio.load(response.data, { xmlMode: true });
+                    $("item").each((i, el) => {
+                        items.push({
+                            id: $(el).find("guid").text() || $(el).find("link").text(),
+                            content: $(el).find("description").text() || $(el).find("title").text(),
+                            link: $(el).find("link").text(),
+                            date: $(el).find("pubDate").text()
+                        });
+                    });
+                    if (items.length > 0) break;
+                }
             } catch (err) {
-                console.log(`⚠️ Fetch failed for ${url}: ${err.message}`);
+                console.log(`⚠️ Nitter Fetch failed for ${url}: ${err.message}`);
             }
         }
 
-        if (!response || !response.data) {
-            throw new Error("All Nitter instances failed to fetch tweets.");
+        // Step 2: Fallback to Telegram if Nitter failed
+        if (items.length === 0) {
+            items = await fetchFromTelegram();
+            source = "telegram";
         }
 
-        const $ = cheerio.load(response.data, { xmlMode: true });
-        const items = [];
-        
-        $("item").each((i, el) => {
-            const title = $(el).find("title").text();
-            const description = $(el).find("description").text();
-            const link = $(el).find("link").text();
-            const pubDate = $(el).find("pubDate").text();
-            const guid = $(el).find("guid").text();
-
-            items.push({
-                id: guid || link,
-                content: description || title,
-                link: link,
-                date: pubDate
-            });
-        });
-
-        const cache = loadCache();
-        const newTweets = [];
-
-        // If it's the first time, just store the latest ID and return nothing 
-        // to avoid spamming historical tweets
-        if (!cache.lastTweetId) {
-            if (items.length > 0) {
-                cache.lastTweetId = items[0].id;
-                saveCache(cache);
-                console.log("✅ Initialized Twitter cache with ID:", cache.lastTweetId);
-            }
+        if (items.length === 0) {
+            console.warn("📭 All sources (Nitter & Telegram) failed or returned no items.");
             return [];
         }
 
+        const cache = loadCache();
+        const newTweets = [];
+        const lastId = (source === "nitter") ? cache.lastNitterId : cache.lastTelegramId;
+
+        // If it's the first time for this source, initialize and return nothing
+        if (!lastId) {
+            if (source === "nitter") cache.lastNitterId = items[0].id;
+            else cache.lastTelegramId = items[0].id;
+            saveCache(cache);
+            console.log(`✅ Initialized ${source} cache with ID:`, items[0].id);
+            return [];
+        }
+
+        // Identify new items
         for (const tweet of items) {
-            if (tweet.id === cache.lastTweetId) break;
+            if (tweet.id === lastId) break;
             newTweets.push(tweet);
         }
 
+        // Update cache
         if (newTweets.length > 0) {
-            cache.lastTweetId = items[0].id;
+            if (source === "nitter") cache.lastNitterId = items[0].id;
+            else cache.lastTelegramId = items[0].id;
             saveCache(cache);
 
-            // Translate new tweets
+            // Translate new items
             for (const tweet of newTweets) {
-                console.log("📝 Translating tweet:", tweet.id);
+                console.log(`📝 Translating ${source} update:`, tweet.id);
                 tweet.translatedContent = await translateTweet(tweet.content);
             }
         }
 
-        return newTweets.reverse(); // Return in chronological order (oldest first)
+        return newTweets.reverse(); // Chronological order
     } catch (error) {
-        console.error("Twitter fetch error:", error.message);
+        console.error("Twitter service main error:", error.message);
         return [];
     }
 }
