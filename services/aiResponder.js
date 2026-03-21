@@ -84,6 +84,10 @@ function buildFlowContext(flowData) {
   context += `USD Flow: ${flowData.usdFlow}\n`;
   context += `Risk Flow: ${flowData.riskFlow}\n`;
 
+  if (flowData.repoData && !flowData.repoData.error) {
+    context += `ON RRP / Reverse Repo Balance: $${flowData.repoData.amountBillion}B (${flowData.repoData.changePercent}%) [${flowData.repoData.direction}]\n`;
+  }
+
   return context;
 }
 

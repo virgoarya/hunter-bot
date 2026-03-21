@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { fetchYahooPrice } = require("./yahooFinance");
+const { fetchRepoData } = require("./repoService");
 
 const CACHE_MS = 2 * 60 * 1000; // 2 minutes cache
 let flowCache = { data: null, updatedAt: 0 };
@@ -61,11 +62,15 @@ async function fetchLiquidityFlow(forceRefresh = false) {
   // Aggregate flow analysis
   const usdFlow = calculateUSDFlow(results);
   const riskFlow = calculateRiskFlow(results);
+  
+  // Fetch Repo Data
+  const repoData = await fetchRepoData();
 
   const flowData = {
     instruments: results,
     usdFlow,
     riskFlow,
+    repoData,
     updatedAt: new Date().toISOString(),
   };
 
@@ -130,6 +135,11 @@ function formatFlowSummary(flowData) {
 
   summary += `\n💵 **Aliran USD**: ${flowData.usdFlow.replace(/_/g, " ")}`;
   summary += `\n📈 **Aliran Risiko**: ${flowData.riskFlow.replace(/_/g, " ")}`;
+  
+  if (flowData.repoData && !flowData.repoData.error) {
+    const sign = flowData.repoData.changePercent > 0 ? "+" : "";
+    summary += `\n🏦 **ON RRP Balance**: $${flowData.repoData.amountBillion}B (${sign}${flowData.repoData.changePercent}%) | ${flowData.repoData.direction}`;
+  }
 
   return summary;
 }
@@ -159,10 +169,15 @@ function buildFlowEmbed(flowData) {
     instrumentList += `${arrow} **${inst.symbol}**: ${inst.price} (${inst.change24h}%)\n`;
   }
 
+  const repoStr = flowData.repoData && !flowData.repoData.error
+    ? `**$${flowData.repoData.amountBillion}B** (${flowData.repoData.changePercent > 0 ? '+' : ''}${flowData.repoData.changePercent}%) | *${flowData.repoData.direction}*`
+    : `Data tidak tersedia`;
+
   embed.addFields(
     { name: "📈 Instrumen", value: instrumentList || "Tidak ada data", inline: false },
     { name: "💵 Aliran USD", value: `**${flowData.usdFlow.replace(/_/g, " ")}**`, inline: true },
-    { name: "🎲 Aliran Risiko", value: `**${flowData.riskFlow.replace(/_/g, " ")}**`, inline: true }
+    { name: "🎲 Aliran Risiko", value: `**${flowData.riskFlow.replace(/_/g, " ")}**`, inline: true },
+    { name: "🏦 ON RRP (Liquidity)", value: repoStr, inline: false }
   );
 
   return { embeds: [embed] };
