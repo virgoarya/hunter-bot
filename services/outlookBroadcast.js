@@ -275,6 +275,11 @@ Instruksi:
 - Jelaskan apa yang paling perlu dipantau hari ini (data, level, atau reaksi pasar), secara naratif saja.`;
 
         const { postToAI } = require("../utils/aiProxy");
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent }
+        ];
+
         return await postToAI(messages, {
             temperature: 0.3
         });

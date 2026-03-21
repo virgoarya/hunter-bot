@@ -161,6 +161,11 @@ Konteks Makro:
         }
 
         const { postToAI } = require("../utils/aiProxy");
+        const messages = [
+            { role: "system", content: "Anda adalah pakar analisis Institutional Positioning (COT). Analisis data ini dengan gaya Hedge Fund Desk. Fokus pada pergeseran Leveraged Funds vs Commercials." },
+            { role: "user", content: `Analisis data COT berikut:\n${cotSummary}\n\n${macroContext}\n\nBerikan interpretasi profesional singkat (max 3 paragraf).` }
+        ];
+
         const interpretation = await postToAI(messages, {
             temperature: 0.2 // More stable for analysis
         });
