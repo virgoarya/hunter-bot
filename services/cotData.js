@@ -1,4 +1,6 @@
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 // CFTC Combined Futures-Only Short Format (easier to parse)
 const CFTC_CSV_URL = "https://cftc.gov/dea/newcot/deafut.txt";
@@ -68,6 +70,18 @@ async function fetchCFTCReport(url, retries = 3) {
             }
         }
     }
+
+    // FINAL FALLBACK: Local Mirror
+    try {
+        const localPath = path.join(__dirname, "../data/cot_raw.txt");
+        if (fs.existsSync(localPath)) {
+            console.log("📂 Using local COT mirror as fallback...");
+            return fs.readFileSync(localPath, "utf8");
+        }
+    } catch (err) {
+        console.warn("⚠️ Local COT mirror failed:", err.message);
+    }
+
     return null;
 }
 
