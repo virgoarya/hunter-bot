@@ -1,0 +1,17 @@
+{
+  "lastUpdate": "2026-03-17",
+  "data": {
+    "gold": {
+      "index6M": "95.2%",
+      "index36M": "56.3%",
+      "netPosition": "+234,512",
+      "url": "https://market-bulls.com/cot-report-gold/"
+    },
+    "usd": {
+      "index6M": "0%",
+      "index36M": "43.1%",
+      "netPosition": "+3,693",
+      "url": "https://market-bulls.com/cot-report-us-dollar-usd/"
+    }
+  }
+}

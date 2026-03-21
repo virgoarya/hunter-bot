@@ -8,6 +8,8 @@ const CFTC_CSV_URL = "https://cftc.gov/dea/newcot/deafut.txt";
 const CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (COT updates weekly)
 let cotCache = { data: null, updatedAt: 0 };
 
+const { fetchMarketBullCOT } = require("./marketBullScraper");
+
 // Contract names to track (partial match in CFTC report)
 const TRACKED_CONTRACTS = [
     { search: "EURO FX", alias: "EUR/USD", category: "forex" },
@@ -16,11 +18,12 @@ const TRACKED_CONTRACTS = [
     { search: "AUSTRALIAN DOLLAR", alias: "AUD/USD", category: "forex" },
     { search: "CANADIAN DOLLAR", alias: "USD/CAD", category: "forex" },
     { search: "SWISS FRANC", alias: "USD/CHF", category: "forex" },
-    { search: "GOLD", alias: "GOLD", category: "commodity" },
+    { search: "GOLD", alias: "GOLD", category: "commodity", marketBullKey: "gold" },
     { search: "SILVER", alias: "SILVER", category: "commodity" },
     { search: "CRUDE OIL", alias: "OIL", category: "commodity" },
     { search: "E-MINI S&P 500", alias: "S&P 500", category: "index" },
     { search: "NASDAQ-100", alias: "NASDAQ", category: "index" },
+    { search: "U.S. DOLLAR INDEX", alias: "USD Index", category: "index", marketBullKey: "usd" },
 ];
 
 async function fetchCOTData(forceRefresh = false) {
@@ -38,6 +41,19 @@ async function fetchCOTData(forceRefresh = false) {
         }
 
         const parsed = parseCOTReport(rawData);
+
+        // Enrichment with MarketBull Data (Index & Charts)
+        for (const contract of parsed.contracts) {
+            const tracked = TRACKED_CONTRACTS.find(t => t.alias === contract.name);
+            if (tracked && tracked.marketBullKey) {
+                console.log(`📊 Enriching ${contract.name} with MarketBull data...`);
+                const mbData = await fetchMarketBullCOT(tracked.marketBullKey);
+                if (mbData) {
+                    contract.marketBull = mbData;
+                }
+            }
+        }
+
         cotCache = { data: parsed, updatedAt: now };
         return parsed;
     } catch (error) {
@@ -171,7 +187,12 @@ function formatCOTReport(cotData) {
                 ? `+${contract.speculator.net.toLocaleString()}`
                 : contract.speculator.net.toLocaleString();
 
-        const line = `${arrow} **${contract.name}** — Speculators: ${netFormatted} | Comm: ${contract.commercial.net > 0 ? "+" : ""}${contract.commercial.net.toLocaleString()}`;
+        let line = `${arrow} **${contract.name}** — Speculators: ${netFormatted} | Comm: ${contract.commercial.net > 0 ? "+" : ""}${contract.commercial.net.toLocaleString()}`;
+
+        // Append MarketBull Insights if available
+        if (contract.marketBull && contract.marketBull.cotIndex6M !== "N/A") {
+            line += `\n   ┗ 📊 **COT Index (6M): ${contract.marketBull.cotIndex6M}** | [View Chart](${contract.marketBull.chartUrl})`;
+        }
 
         if (categories[contract.category]) {
             categories[contract.category].items.push(line);
