@@ -276,13 +276,46 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// === Error Handling ===
+// === Health Check Server (For Railway/Heroku) ===
+const http = require("http");
+const PORT = process.env.PORT || 8080;
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Hunter Bot is running\n");
+});
+
+server.listen(PORT, () => {
+  console.log(`📡 Health check server listening on port ${PORT}`);
+});
+
+// === Error Handling & Graceful Shutdown ===
 client.on("error", (error) => {
   console.error("Discord client error:", error);
 });
 
 process.on("unhandledRejection", (error) => {
   console.error("Unhandled rejection:", error);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error);
+  // Optional: Graceful exit after critical exception
+  process.exit(1);
+});
+
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully...");
+  server.close();
+  client.destroy();
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully...");
+  server.close();
+  client.destroy();
+  process.exit(0);
 });
 
 // === Login ===
