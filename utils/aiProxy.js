@@ -75,26 +75,28 @@ async function postToAI(messages, options = {}) {
 
     try {
         // 1. Try Primary (OpenRouter)
+        console.log(`🤖 [AI] Step 1: Trying Primary Model (${primaryModel})...`);
         return await callOpenRouter(primaryModel);
     } catch (error) {
         const status = error.response?.status;
-        console.warn(`⚠️ [Primary Failed] ${primaryModel} status: ${status}`);
+        const errorMsg = error.response?.data?.error?.message || error.message;
+        console.warn(`⚠️ [Primary Failed] Status: ${status} | Error: ${errorMsg}`);
 
         // 2. Try Google Gemini as first fallback for 429/402/401/403/5xx
         if (status === 429 || status === 402 || status === 401 || status === 403 || status >= 500) {
             try {
-                console.log("🔄 [Fallback 1] Switching to Google Gemini...");
+                console.log("🔄 [AI] Step 2: Attempting Failover to Google Gemini...");
                 return await callGemini();
             } catch (geminiError) {
                 console.error("❌ [Gemini Failed]:", geminiError.message);
                 
                 // 3. Try NVIDIA Nemotron (OpenRouter) as last resort
                 try {
-                    console.log("🔄 [Fallback 2] Final attempt with NVIDIA Nemotron (OpenRouter)...");
+                    console.log("🔄 [AI] Step 3: Final Attempt with NVIDIA Nemotron (OpenRouter)...");
                     return await callOpenRouter("nvidia/nemotron-3-super-120b-a12b:free");
                 } catch (lastError) {
-                    console.error("💀 [All Providers Failed]");
-                    throw lastError;
+                    console.error("💀 [AI] All Providers Exhausted.");
+                    throw new Error(`All AI providers failed. Last Error: ${lastError.message}`);
                 }
             }
         }
