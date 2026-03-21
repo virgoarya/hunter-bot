@@ -177,24 +177,30 @@ async function buildCOTBroadcast() {
                       `_Data ini mingguan, diambil dari laporan resmi CFTC (deafut.txt). Gunakan untuk baca positioning, bukan intraday timing._\n\n`;
 
     // Contracts
-    const topContracts = cotData.contracts.slice(0, 5);
+    const topContracts = cotData.contracts.slice(0, 12); // Show more/all
     let contractList = "";
     for (const c of topContracts) {
-        contractList += `**${c.name}**: ${c.sentiment} (Net: ${c.speculator.net.toLocaleString()})\n`;
+        let line = `**${c.name}**: ${c.sentiment} (Net: ${c.speculator.net.toLocaleString()})`;
+        
+        // Append MarketBull Index if available
+        if (c.marketBull && c.marketBull.cotIndex6M !== "N/A") {
+            line += `\n   ┗ 📊 **Index: ${c.marketBull.cotIndex6M}** | [Chart](${c.marketBull.chartUrl})`;
+        }
+        
+        contractList += line + "\n";
     }
-    embed.addFields({ name: "📝 Kontrak Teratas", value: contractList || "Tidak ada data", inline: false });
+    embed.addFields({ name: "📝 Recap Positioning & Index", value: contractList || "Tidak ada data", inline: false });
 
-    // Analyze changes
+    // Meta info in description
+    embed.setDescription(description);
+
+    // Analysis/Interpretation (optional, but keep it if AI is fast)
     const analysis = analyzeCOTChanges(cotData);
     if (analysis) {
         const interpretation = await generateCOTInterpretation(cotData, analysis);
         if (interpretation) {
-            embed.setDescription(description + interpretation);
-        } else {
-            embed.setDescription(description);
+            embed.addFields({ name: "🧠 Analisis Institusional", value: interpretation.substring(0, 1024), inline: false });
         }
-    } else {
-        embed.setDescription(description);
     }
 
     return { embeds: [embed] };

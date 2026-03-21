@@ -214,5 +214,83 @@
       }
     ],
     "timestamp": 1773516567730
+  },
+  {
+    "date": "2026-03-17",
+    "contracts": [
+      {
+        "name": "EUR/USD",
+        "netSpeculator": 21132,
+        "netCommercial": -58433,
+        "openInterest": 755789
+      },
+      {
+        "name": "GBP/USD",
+        "netSpeculator": -65515,
+        "netCommercial": 70330,
+        "openInterest": 243434
+      },
+      {
+        "name": "USD/JPY",
+        "netSpeculator": -67780,
+        "netCommercial": 70002,
+        "openInterest": 326688
+      },
+      {
+        "name": "AUD/USD",
+        "netSpeculator": 69061,
+        "netCommercial": -93772,
+        "openInterest": 265675
+      },
+      {
+        "name": "USD/CAD",
+        "netSpeculator": 886,
+        "netCommercial": -6206,
+        "openInterest": 247753
+      },
+      {
+        "name": "USD/CHF",
+        "netSpeculator": -25213,
+        "netCommercial": 29602,
+        "openInterest": 74101
+      },
+      {
+        "name": "GOLD",
+        "netSpeculator": 159869,
+        "netCommercial": -198648,
+        "openInterest": 411388
+      },
+      {
+        "name": "SILVER",
+        "netSpeculator": 21881,
+        "netCommercial": -38358,
+        "openInterest": 114758
+      },
+      {
+        "name": "OIL",
+        "netSpeculator": -32831,
+        "netCommercial": 33026,
+        "openInterest": 849074
+      },
+      {
+        "name": "S&P 500",
+        "netSpeculator": -113057,
+        "netCommercial": 19120,
+        "openInterest": 2330659
+      },
+      {
+        "name": "NASDAQ",
+        "netSpeculator": 20941,
+        "netCommercial": -24936,
+        "openInterest": 318004
+      },
+      {
+        "name": "USD Index",
+        "netSpeculator": 3693,
+        "netCommercial": -4957,
+        "openInterest": 35456
+      }
+    ],
+    "timestamp": 1774109864178
   }
 ]
