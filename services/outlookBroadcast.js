@@ -14,6 +14,7 @@ const {
     storeCOTSnapshot,
 } = require("./cotAnalyzer");
 const { buildCalendarBroadcast } = require("./calendarBroadcast");
+const { buildTradingInsight } = require("./tradingInsight");
 
 async function buildMorningOutlook() {
     // Refresh all data
@@ -74,6 +75,12 @@ async function buildMorningOutlook() {
         )
         .setTimestamp()
         .setFooter({ text: "Hunter Bot • Analisa Pagi" });
+
+    // Generate trading insight
+    const repoData = state.RepoData;
+    const insight = buildTradingInsight(regime, bias, intent, repoData);
+    embed.addFields({ name: "\u200B", value: "\u200B" });
+    embed.addFields({ name: "🎯 INSIGHT POSISI TRADING", value: insight.text, inline: false });
 
     return { embeds: [embed] };
 }
@@ -140,6 +147,11 @@ async function buildSessionOutlook(sessionName) {
     );
 
     embed.setTimestamp().setFooter({ text: `Hunter Bot • Desk Sesi ${sessionName}` });
+
+    // Generate trading insight
+    const insightData = buildTradingInsight(regime, bias, intent, state.RepoData);
+    embed.addFields({ name: "\u200B", value: "\u200B" });
+    embed.addFields({ name: "🎯 INSIGHT POSISI TRADING", value: insightData.text, inline: false });
 
     return { embeds: [embed] };
 }

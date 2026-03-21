@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
+const { buildTradingInsight } = require("./tradingInsight");
 
-async function sendBiasBroadcast(client, channelId, regime, bias, session, shift, intent, narrative) {
+async function sendBiasBroadcast(client, channelId, regime, bias, session, shift, intent, narrative, repoData) {
   const channel = await client.channels.fetch(channelId);
   if (!channel) return;
 
@@ -21,6 +22,9 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
 
   const title = shift ? "🚨 PERUBAHAN REZIM INSTITUSIONAL" : "📊 PEMBARUAN MAKRO";
 
+  // Generate trading insight
+  const insight = buildTradingInsight(regime, bias, intent, repoData);
+
   const embed = new EmbedBuilder()
     .setTitle(title)
     .setColor(embedColor)
@@ -40,6 +44,10 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
       { name: "🌏 Outlook Asia", value: session.asiaBias || "N/A", inline: false },
       { name: "🌍 Outlook London", value: session.londonBias || "N/A", inline: false },
       { name: "🇺🇸 Outlook New York", value: session.newyorkBias || "N/A", inline: false }
+    )
+    .addFields({ name: "\u200B", value: "\u200B" }) // Spacer
+    .addFields(
+      { name: "🎯 INSIGHT POSISI TRADING", value: insight.text, inline: false }
     )
     .setTimestamp()
     .setFooter({ text: "Hunter Bot • Intelijen Institusional" });

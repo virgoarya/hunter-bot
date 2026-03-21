@@ -59,7 +59,8 @@ async function runMacroCycle(client) {
     session,
     shift,
     intent,
-    narrative
+    narrative,
+    state.RepoData
   );
 }
 
