@@ -54,77 +54,48 @@ function buildTradingInsight(regime, bias, intent, repoData = null) {
 
     // GOLD
     const goldBias = bias?.goldBias || "Netral";
-    if (goldBias.includes("Bullish")) {
-        insights.push({
-            instrument: "🥇 GOLD (XAU/USD)",
-            direction: "BUY / LONG",
-            emoji: "🟢",
-            reason: getGoldReason("bullish", regimeText, repoSignal)
-        });
+    if (goldBias.includes("Strong Bullish")) {
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "STRONG BUY / LONG 🚀", emoji: "🟢", reason: getGoldReason("strong_bullish", regimeText, repoSignal) });
+    } else if (goldBias === "Bullish") {
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "BUY / LONG", emoji: "🟢", reason: getGoldReason("bullish", regimeText, repoSignal) });
+    } else if (goldBias.includes("Slight Bullish")) {
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "ACCUMULATE / WATCH 📈", emoji: "🟡", reason: getGoldReason("slight_bullish", regimeText, repoSignal) });
+    } else if (goldBias.includes("Strong Bearish")) {
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "STRONG SELL / SHORT 📉", emoji: "🔴", reason: getGoldReason("strong_bearish", regimeText, repoSignal) });
     } else if (goldBias.includes("Bearish")) {
-        insights.push({
-            instrument: "🥇 GOLD (XAU/USD)",
-            direction: "SELL / SHORT",
-            emoji: "🔴",
-            reason: getGoldReason("bearish", regimeText, repoSignal)
-        });
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "SELL / SHORT", emoji: "🔴", reason: getGoldReason("bearish", regimeText, repoSignal) });
+    } else if (goldBias.includes("Slight Bearish")) {
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "REDUCE / WATCH 📉", emoji: "🟠", reason: getGoldReason("slight_bearish", regimeText, repoSignal) });
     } else {
-        insights.push({
-            instrument: "🥇 GOLD (XAU/USD)",
-            direction: "WAIT / NETRAL",
-            emoji: "⚪",
-            reason: "Belum ada arah yang jelas. Tunggu konfirmasi dari pergerakan real yield dan DXY."
-        });
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "WAIT / NETRAL", emoji: "⚪", reason: "Belum ada arah yang jelas. Tunggu konfirmasi dari pergerakan real yield dan DXY." });
     }
 
     // FOREX (USD pairs)
     const usdBias = bias?.usdBias || "Netral";
-    if (usdBias.includes("Bullish")) {
-        insights.push({
-            instrument: "💵 USD (DXY)",
-            direction: "USD MENGUAT",
-            emoji: "🟢",
-            reason: getUsdReason("bullish", regimeText, repoSignal)
-        });
-    } else if (usdBias === "Bearish") {
-        insights.push({
-            instrument: "💵 USD (DXY)",
-            direction: "USD MELEMAH",
-            emoji: "🔴",
-            reason: getUsdReason("bearish", regimeText, repoSignal)
-        });
+    if (usdBias.includes("Strong Bullish")) {
+        insights.push({ instrument: "💵 USD (DXY)", direction: "USD MENGUAT TAJAM 🚀", emoji: "🟢", reason: getUsdReason("strong_bullish", regimeText, repoSignal) });
+    } else if (usdBias.includes("Bullish")) {
+        insights.push({ instrument: "💵 USD (DXY)", direction: "USD MENGUAT", emoji: "🟢", reason: getUsdReason("bullish", regimeText, repoSignal) });
+    } else if (usdBias.includes("Bearish")) {
+        insights.push({ instrument: "💵 USD (DXY)", direction: "USD MELEMAH", emoji: "🔴", reason: getUsdReason("bearish", regimeText, repoSignal) });
     } else {
-        insights.push({
-            instrument: "💵 USD (DXY)",
-            direction: "NETRAL",
-            emoji: "⚪",
-            reason: "USD dalam konsolidasi. Pantau data ekonomi AS untuk konfirmasi arah."
-        });
+        insights.push({ instrument: "💵 USD (DXY)", direction: "NETRAL", emoji: "⚪", reason: "USD dalam konsolidasi. Pantau data ekonomi AS untuk konfirmasi arah." });
     }
 
     // EQUITY (NASDAQ / Saham)
     const eqBias = bias?.equityBias || "Netral";
-    if (eqBias.includes("Bullish")) {
-        insights.push({
-            instrument: "📈 SAHAM (NASDAQ)",
-            direction: "BUY / LONG",
-            emoji: "🟢",
-            reason: getEquityReason("bullish", regimeText, repoSignal)
-        });
+    if (eqBias.includes("Strong Bullish")) {
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "STRONG BUY / LONG 🚀", emoji: "🟢", reason: getEquityReason("strong_bullish", regimeText, repoSignal) });
+    } else if (eqBias === "Bullish") {
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "BUY / LONG", emoji: "🟢", reason: getEquityReason("bullish", regimeText, repoSignal) });
+    } else if (eqBias.includes("Slight Bullish")) {
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "WAIT / ACCUMULATE 📈", emoji: "🟡", reason: getEquityReason("slight_bullish", regimeText, repoSignal) });
+    } else if (eqBias.includes("Strong Bearish")) {
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "STRONG SELL / SHORT 📉", emoji: "🔴", reason: getEquityReason("strong_bearish", regimeText, repoSignal) });
     } else if (eqBias.includes("Bearish")) {
-        insights.push({
-            instrument: "📈 SAHAM (NASDAQ)",
-            direction: "SELL / SHORT",
-            emoji: "🔴",
-            reason: getEquityReason("bearish", regimeText, repoSignal)
-        });
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "SELL / SHORT", emoji: "🔴", reason: getEquityReason("bearish", regimeText, repoSignal) });
     } else {
-        insights.push({
-            instrument: "📈 SAHAM (NASDAQ)",
-            direction: "WAIT / NETRAL",
-            emoji: "⚪",
-            reason: "Pasar belum menunjukkan arah yang dominan. Hindari posisi besar."
-        });
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "WAIT / NETRAL", emoji: "⚪", reason: "Pasar belum menunjukkan arah yang dominan. Hindari posisi besar." });
     }
 
     // === Format the complete insight text ===

@@ -43,14 +43,19 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   }
 
   // === 3. GOLD BIAS (Real Yields & Safe Haven) ===
-  if (realYield < th.low || regime.includes("Stagflasi") || regime.includes("Goncangan")) {
+  const isSafeHavenRegime = regime.includes("Stagflasi") || regime.includes("Goncangan");
+  const isUSDStrong = usdBias.includes("Bullish");
+
+  if (realYield < th.low || isSafeHavenRegime) {
     goldBias = "Bullish";
     if (repoChange < -5) goldBias = "Netral / Rotasi";
-  } else if (realYield > th.high && usdBias === "Bullish") {
-    goldBias = "Bearish";
+  } else if (realYield > th.high || (isUSDStrong && !isSafeHavenRegime)) {
+    // USD Kuat + Yield Tinggi = Musuh Emas (prioritas di atas Safe Haven biasa)
+    goldBias = isUSDStrong ? "Strong Bearish" : "Bearish";
   } else if (regime.includes("Kepanikan")) {
     goldBias = "Netral / Volatil";
-  } else if (repoChange > 5) {
+  } else if (repoChange > 5 && !isUSDStrong) {
+    // Hanya Slight Bullish jika USD tidak sedang mendominasi
     goldBias = goldBias === "Netral" ? "Slight Bullish" : goldBias;
   }
 
