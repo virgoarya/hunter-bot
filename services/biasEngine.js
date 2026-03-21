@@ -8,7 +8,7 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   const vTh = getAdaptiveThresholds("VIX", { high: 22, low: 16, mean: 19 });
   const rTh = getAdaptiveThresholds("RealYield", { high: 1.9, low: 1.4, mean: 1.65 });
 
-  const dTh = { dxyHigh: 101.5, dxyLow: 99.5 };
+  const dTh = { dxyHigh: 100.2, dxyLow: 98.8 };
   const th = { ...yTh, ...vTh, ...rTh, ...dTh, ...thresholds };
 
   const dxy = macro.DXY?.close ?? 0;

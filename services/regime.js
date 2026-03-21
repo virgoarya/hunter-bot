@@ -11,7 +11,7 @@ function classifyRegime(state) {
   // Get Adaptive Thresholds
   const vTh = getAdaptiveThresholds("VIX", { high: 28, veryHigh: 35, low: 16, mean: 20 });
   const yTh = getAdaptiveThresholds("US10Y", { high: 4.2, low: 3.8, mean: 4.0 });
-  const dTh = getAdaptiveThresholds("DXY", { high: 102, low: 100, mean: 101 });
+  const dTh = getAdaptiveThresholds("DXY", { high: 100.2, low: 98.8, mean: 99.5 });
 
   const dxy = state.DXY.close;
   const us10y = state.US10Y.close;
@@ -71,10 +71,14 @@ function classifyRegime(state) {
 
   // === 6. DEFENSIVE ===
   if (dxy > dTh.high || vix > vTh.mean || (isRepoRiskOff && vix > vTh.low)) {
+    const reasons = [];
+    if (dxy > dTh.high) reasons.push(`DXY > ${dTh.high.toFixed(1)}`);
+    if (vix > vTh.mean) reasons.push(`VIX > ${vTh.mean.toFixed(1)}`);
+    if (isRepoRiskOff) reasons.push("ON RRP meningkat");
+
     return {
       regime: "Defensif 🛡️",
-      description: `Pengetatan likuiditas global (DXY > ${dTh.high.toFixed(1)}). Institusi meningkatkan kepemilikan kas.` +
-        (isRepoRiskOff ? " ON RRP meningkat — dana kembali ke The Fed." : "")
+      description: `Pengetatan likuiditas detect via (${reasons.join(", ")}). Institusi meningkatkan kepemilikan kas.`
     };
   }
 
