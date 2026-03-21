@@ -199,7 +199,15 @@ async function buildCOTBroadcast() {
     if (analysis) {
         const interpretation = await generateCOTInterpretation(cotData, analysis);
         if (interpretation) {
-            embed.addFields({ name: "🧠 Analisis Institusional", value: interpretation.substring(0, 1024), inline: false });
+            // Split interpretation if it exceeds 1024 chars (Discord limit)
+            const chunks = interpretation.match(/[\s\S]{1,1024}/g) || [];
+            chunks.forEach((chunk, index) => {
+                embed.addFields({ 
+                    name: index === 0 ? "🧠 Analisis Institusional (Follow CTA & Macro Reasoning)" : "\u200B", 
+                    value: chunk, 
+                    inline: false 
+                });
+            });
         }
     }
 
