@@ -27,9 +27,9 @@ async function fetchRepoData() {
         // totalAmtAccepted is in Dollars, let's convert to Billions
         const currentBil = (latest.totalAmtAccepted / 1000000000).toFixed(2);
         const prevBil = (previous.totalAmtAccepted / 1000000000).toFixed(2);
-        
+
         const changePercent = (((latest.totalAmtAccepted - previous.totalAmtAccepted) / previous.totalAmtAccepted) * 100).toFixed(2);
-        
+
         let direction = "SIDEWAYS";
         if (changePercent > 1) direction = "NAIK (Risk-Off)";
         else if (changePercent < -1) direction = "TURUN (Risk-On)";

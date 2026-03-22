@@ -38,15 +38,15 @@ async function postToAI(messages, options = {}) {
     // Helper: Call Google Gemini (REST)
     const callGemini = async () => {
         if (!apiKeyGemini) throw new Error("GEMINI_API_KEY_MISSING");
-        
+
         // Sequence: gemini-flash-latest -> gemini-flash-lite-latest
         const geminiModels = ["gemini-flash-latest", "gemini-flash-lite-latest"];
-        
+
         for (const model of geminiModels) {
             try {
                 console.log(`📡 [AI] Trying Gemini Model: ${model}...`);
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyGemini}`;
-                
+
                 const systemMessage = messages.find(m => m.role === "system");
                 const userMessages = messages.filter(m => m.role !== "system");
 
@@ -70,7 +70,7 @@ async function postToAI(messages, options = {}) {
                 }
 
                 const response = await axios.post(url, payload, { timeout: options.timeout || 30000 });
-                
+
                 if (response.data.candidates && response.data.candidates[0].content) {
                     return response.data.candidates[0].content.parts[0].text;
                 }
@@ -100,7 +100,7 @@ async function postToAI(messages, options = {}) {
                 return await callGemini();
             } catch (geminiError) {
                 console.error("❌ [Gemini Sequence Failed]:", geminiError.message);
-                
+
                 // 3. Try NVIDIA Nemotron (OpenRouter) as last resort
                 try {
                     console.log("🔄 [AI] Step 3: Final Attempt with NVIDIA Nemotron (OpenRouter)...");

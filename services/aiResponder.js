@@ -19,7 +19,7 @@ function isMacroStateStale(state, staleMs = 5 * 60 * 1000) {
 function formatCalendarItem(item) {
   const source = item?.source ? `[${item.source}] ` : "";
   let dateStr = "N/A";
-  
+
   try {
     if (item?.date) {
       const d = new Date(item.date);
@@ -256,13 +256,13 @@ async function generateReply(question, userId) {
     const correlation = detectCorrelationPatterns(state);
     const rocShocks = analyzeRateOfChange(state);
     const calendar = await fetchEconomicCalendar();
-    
+
     // Filter calendar: Include last 12 hours + future events up to 3 days
     // This ensures AI can see and comment on recently released data
     const now = new Date();
     const startTime = now.getTime() - (12 * 60 * 60 * 1000); // 12 hours ago
     const endWindow = now.getTime() + (3 * 24 * 60 * 60 * 1000); // 3 days ahead
-    
+
     const filteredCalendar = calendar.filter(e => {
       if (!e.date) return false;
       const eventTime = new Date(e.date).getTime();
@@ -327,14 +327,14 @@ ${calendarText}
 
     const { postToAI } = require("../utils/aiProxy");
     const replyContent = await postToAI(messages, {
-        temperature: isAnalysisMode ? 0 : 0.7
+      temperature: isAnalysisMode ? 0 : 0.7
     });
 
     return replyContent;
   } catch (error) {
     console.error("❌ generateReply Final Error:", error.message);
     if (error.message.includes("AI providers failed")) {
-        return "⚠️ Maaf, sepertinya kuota AI (OpenRouter & Gemini) sedang limit secara bersamaan. Silakan coba lagi nanti atau hubungi Admin.";
+      return "⚠️ Maaf, sepertinya kuota AI (OpenRouter & Gemini) sedang limit secara bersamaan. Silakan coba lagi nanti atau hubungi Admin.";
     }
     return `⚠️ Maaf, Hunter sedang mengalami gangguan teknis: ${error.message.substring(0, 50)}...`;
   }

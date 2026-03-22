@@ -99,7 +99,7 @@ Postingan Twitter:
         return response.data.choices[0].message.content.trim();
     } catch (error) {
         console.error("Translation error:", error.message);
-        return text; 
+        return text;
     }
 }
 

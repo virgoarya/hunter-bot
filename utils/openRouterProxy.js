@@ -38,7 +38,7 @@ async function postToOpenRouter(messages, options = {}) {
         // Conditions for Fallback: Rate Limit (429) OR Payment Required (402) OR Server Error (5xx)
         if ((status === 429 || status === 402 || status >= 500) && payload.model !== fallbackModel) {
             console.log(`🔄 [AI Fallback] Attempting failover to: ${fallbackModel}...`);
-            
+
             const fallbackPayload = { ...payload, model: fallbackModel };
             try {
                 const fallbackResponse = await axios.post("https://openrouter.ai/api/v1/chat/completions", fallbackPayload, config);

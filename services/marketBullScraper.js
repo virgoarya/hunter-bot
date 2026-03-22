@@ -43,7 +43,7 @@ async function fetchMarketBullCOT(assetKey) {
             });
 
             const $ = cheerio.load(response.data);
-            
+
             // Extract COT Index from SVG/Guages
             $(".su-column").each((i, col) => {
                 const label = $(col).find("span").text();

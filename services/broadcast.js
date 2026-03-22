@@ -53,7 +53,7 @@ async function sendBiasBroadcast(client, channelId, regime, bias, session, shift
       .filter(([_, data]) => data.hasShock)
       .map(([symbol, data]) => `• **${symbol}**: ${data.shockType}`)
       .join("\n");
-    
+
     if (shocks) {
       embed.addFields({ name: "⚡ Lonjakan Deteksi (Shocks)", value: shocks, inline: false });
     }

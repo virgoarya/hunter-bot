@@ -88,4 +88,4 @@ function classifyRegime(state) {
   };
 }
 
-module.exports = { classifyRegime };
+module.exports = { classifyRegime };

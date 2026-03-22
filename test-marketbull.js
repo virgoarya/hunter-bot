@@ -8,7 +8,7 @@ async function testScraper() {
     for (const asset of assets) {
         console.log(`📡 Fetching ${asset.toUpperCase()} COT...`);
         const data = await fetchMarketBullCOT(asset);
-        
+
         if (data) {
             console.log(`✅ Success for ${asset}:`);
             console.log(`   COT Index (6M): ${data.cotIndex6M}`);

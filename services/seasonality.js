@@ -6,14 +6,14 @@
 const SEASONAL_MAP = {
     // Month is 0-indexed (Jan = 0, Dec = 11)
     0: { // January
-        usd: "Bullish", 
+        usd: "Bullish",
         gold: "Strong Bullish", // MB Score: +28.8
-        equity: "Bullish", 
+        equity: "Bullish",
         note: "MarketBulls: Gold Jan Rally (+28.8) & US Dollar Strength"
     },
     1: { // February
-        usd: "Bullish", 
-        gold: "Bullish", 
+        usd: "Bullish",
+        gold: "Bullish",
         equity: "Neutral",
         note: "MarketBulls: Kelanjutan momentum awal tahun"
     },
@@ -32,7 +32,7 @@ const SEASONAL_MAP = {
     4: { // May
         usd: "Neutral",
         gold: "Neutral",
-        equity: "Bearish", 
+        equity: "Bearish",
         note: "MarketBulls: Transisi 'Sell in May' dimonitor"
     },
     5: { // June
@@ -62,7 +62,7 @@ const SEASONAL_MAP = {
     9: { // October
         usd: "Neutral",
         gold: "Neutral",
-        equity: "Bullish", 
+        equity: "Bullish",
         note: "MarketBulls: Bottoming out & persiapan Q4 rally"
     },
     10: { // November
