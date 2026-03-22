@@ -4,6 +4,7 @@ const { getMacroState, updateMacroData } = require("./macroData");
 const { classifyRegime } = require("./regime");
 const { buildBias } = require("./biasEngine");
 const { detectIntent } = require("./intentEngine");
+const { detectDivergences } = require("./correlationEngine");
 const { fetchLiquidityFlow, formatFlowSummary } = require("./liquidityFlow");
 const { fetchRepoData } = require("./repoService");
 const { fetchCOTData, formatCOTReport } = require("./cotData");
@@ -45,7 +46,7 @@ async function buildMorningOutlook() {
             const sign = parseFloat(repoData.changePercent) > 0 ? "+" : "";
             repoLine = ` | ON RRP: **$${repoData.amountBillion}B** (${sign}${repoData.changePercent}%)`;
         }
-    } catch (e) {}
+    } catch (e) { }
 
     const embed = new EmbedBuilder()
         .setTitle(`🌅 OUTLOOK PAGI — ${dateStr}`)
@@ -174,7 +175,7 @@ async function buildCOTBroadcast() {
         .setTimestamp();
 
     let description = `**Tanggal Laporan (CFTC):** ${cotData.reportDate}\n` +
-                      `_Data ini mingguan, diambil dari laporan resmi CFTC (deafut.txt). Gunakan untuk baca positioning, bukan intraday timing._\n\n`;
+        `_Data ini mingguan, diambil dari laporan resmi CFTC (deafut.txt). Gunakan untuk baca positioning, bukan intraday timing._\n\n`;
 
     // Contracts - Split by category
     const forex = cotData.contracts.filter(c => c.category === "forex");
@@ -205,29 +206,29 @@ async function buildCOTBroadcast() {
     if (analysis) {
         const interpretation = await generateCOTInterpretation(cotData, analysis);
         if (interpretation) {
-    if (analysis) {
-        const interpretation = await generateCOTInterpretation(cotData, analysis);
-        if (interpretation) {
-            // Smart split: Split by sections or sentences to avoid mid-word cuts
-            const sections = interpretation.split(/\n(?=🔍|🧠|🎯)/g); // Split by icons
-            
-            for (let section of sections) {
-                // If a section is still > 1024, split by sentence
-                const chunks = section.match(/[\s\S]{1,1024}(?:\.|\n|$)/g) || [section];
-                chunks.forEach((chunk, index) => {
-                    if (chunk.trim()) {
-                        embed.addFields({ 
-                            name: index === 0 && section.startsWith("🔍") ? "🔍 Analisis Posisi CTA" : 
-                                  index === 0 && section.startsWith("🧠") ? "🧠 Macro Reasoning" :
-                                  index === 0 && section.startsWith("🎯") ? "🎯 Smart Money Insight" : "\u200B", 
-                            value: chunk.substring(0, 1024), 
-                            inline: false 
+            if (analysis) {
+                const interpretation = await generateCOTInterpretation(cotData, analysis);
+                if (interpretation) {
+                    // Smart split: Split by sections or sentences to avoid mid-word cuts
+                    const sections = interpretation.split(/\n(?=🔍|🧠|🎯)/g); // Split by icons
+
+                    for (let section of sections) {
+                        // If a section is still > 1024, split by sentence
+                        const chunks = section.match(/[\s\S]{1,1024}(?:\.|\n|$)/g) || [section];
+                        chunks.forEach((chunk, index) => {
+                            if (chunk.trim()) {
+                                embed.addFields({
+                                    name: index === 0 && section.startsWith("🔍") ? "🔍 Analisis Posisi CTA" :
+                                        index === 0 && section.startsWith("🧠") ? "🧠 Macro Reasoning" :
+                                            index === 0 && section.startsWith("🎯") ? "🎯 Smart Money Insight" : "\u200B",
+                                    value: chunk.substring(0, 1024),
+                                    inline: false
+                                });
+                            }
                         });
                     }
-                });
+                }
             }
-        }
-    }
         }
     }
 
@@ -236,43 +237,48 @@ async function buildCOTBroadcast() {
 
 async function generateOutlookAnalysis(state, regime, bias, intent, session = "pagi") {
     try {
+        const divergences = detectDivergences(state);
+        const divText = divergences.length > 0 ? `\n\nDIVERGENSI TERDETEKSI:\n${divergences.join("\n")}` : "";
+
         const systemPrompt = `
 Kamu adalah "Hunter", analis institutional desk profesional untuk komunitas trading Indonesia.
+Terapkan metode "Chain of Thought" (Langkah demi langkah) SEBELUM memberikan hasil akhir.
 
-TUGAS:
-- Jelaskan kondisi pasar berdasarkan DATA yang diberikan di input user: rezim makro, bias USD/emas/saham, intent institusional, dan level indeks yang sudah dihitung bot.
-- Anda sedang menganalisis sesi: ${session.toUpperCase()}. Jelaskan karakteristik sesi ini (misal: volume London, volatilitas NY) dalam konteks data tersebut.
-- Fokus ke narasi: tekanan sistem, arah likuiditas, dan apa yang perlu dipantau hari ini.
-- JANGAN menambahkan angka baru (harga, yield, indeks, level teknikal) di luar yang tertulis di input.
-- Jika ingin menyebut angka, gunakan hanya angka yang sudah ada di input user, atau sebut secara kualitatif (misalnya: "tinggi", "rendah", "naik", "turun").
-- Jangan mengklaim sumber data seperti Bloomberg, Reuters, dsb. Anggap semua data hanya berasal dari input.
+LANGKAH BERPIKIR (Internal Reasoning - Tidak perlu ditulis di output, simpan sebagai proses berpikirmu):
+1. Identifikasi driver utama (Yield, Likuiditas, Repo, atau Sentimen).
+2. Analisis interaksi antar aset (contoh: DXY vs Yield, VIX vs Gold).
+3. Evaluasi apakah ada anomali atau divergensi institusional.
+4. Sintesis arah arus likuiditas (apakah risk-on sejati, defensif, atau deleveraging).
 
-GAYA:
-- Bahasa Indonesia dengan istilah teknis Inggris.
-- 2–3 paragraf pendek, padat, gaya desk briefing.
-- Mulai dengan kalimat: "Key takeaway [Sesi ${session}]: ..."
+TUGAS OUTPUT UTAMA:
+- Berikan narasi tajam untuk Sesi: ${session.toUpperCase()} berdasarkan data rezim makro, bias, intent institusional, dan divergensi (jika ada).
+- Output harus padat, tidak bertele-tele, gaya "Executive Summary" ala desk quant fund.
+- JANGAN menyebut "Langkah 1", "Langkah 2" di output. Langsung berikan insight akhirnya.
+- JANGAN mengarang angka baru. Gunakan data dari input secara kualitatif.
+- Jika ada "DIVERGENSI TERDETEKSI", jadikan itu fokus utama narasi (karena itu sinyal pergerakan smart money).
+
+FORMAT:
+- Mulai dengan: "Key takeaway [Sesi ${session}]: ..."
+- 2 paragraf pendek. Paragraf 1: Analisis makro & arah arus likuiditas. Paragraf 2: Implikasi & Peringatan Divergensi (jika ada).
 - Tutup dengan 1 kalimat: "Ini analisis edukatif, bukan saran transaksi."`;
 
+        const repoData = state?.RepoData;
+        const repoStr = repoData && !repoData.error ? `ON RRP: $id${repoData.amountBillion}B (${repoData.direction}, change: ${repoData.changePercent}%)` : "ON RRP: N/A";
+
         const userContent = `
-Data rezim & bias:
+Data makro saat ini:
 - Regime: ${regime.regime} (${regime.description})
 - Intent: ${intent.intent} (${intent.description})
-- Bias USD: ${bias.usdBias}
-- Bias Emas: ${bias.goldBias}
-- Bias Saham: ${bias.equityBias}
+- Bias USD: ${bias.usdBias} | Bias Emas: ${bias.goldBias} | Bias Saham: ${bias.equityBias}
+- DXY: ${state?.DXY?.close ?? "N/A"} (${state?.DXY?.change ?? "0"})
+- GOLD: ${state?.GOLD?.close ?? "N/A"} (${state?.GOLD?.change ?? "0"})
+- NASDAQ: ${state?.NASDAQ?.close ?? "N/A"} (${state?.NASDAQ?.change ?? "0"})
+- US10Y: ${state?.US10Y?.close ?? "N/A"} (${state?.US10Y?.change ?? "0"})
+- VIX: ${state?.VIX?.close ?? "N/A"} (${state?.VIX?.change ?? "0"})
+- ${repoStr}${divText}
 
-Level kunci (boleh disebut secara kualitatif, jangan tambah angka baru):
-- DXY: ${state?.DXY?.close ?? "N/A"}
-- GOLD: ${state?.GOLD?.close ?? "N/A"}
-- NASDAQ: ${state?.NASDAQ?.close ?? "N/A"}
-- US10Y: ${state?.US10Y?.close ?? "N/A"}
-- VIX: ${state?.VIX?.close ?? "N/A"}
-
-Instruksi:
-- Jelaskan arah likuiditas (dolar, yield, risk sentiment) berdasarkan data di atas.
-- Jika data ON RRP tersedia, integrasikan analisisnya: apakah institusi memarkir uang di The Fed (risk-off) atau menariknya kembali ke pasar (risk-on).
-- Jelaskan implikasi praktis untuk trader intraday/swing (tanpa rekomendasi spesifik entry/SL).
-- Jelaskan apa yang paling perlu dipantau hari ini (data, level, atau reaksi pasar), secara naratif saja.`;
+Instruksi tambahan:
+Integrasikan semua ini menjadi analisa komprehensif. Jelaskan "MENGAPA" pasar bergerak seperti ini, bukan sekadar "APA" yang terjadi.`;
 
         const { postToAI } = require("../utils/aiProxy");
         const messages = [
@@ -281,7 +287,7 @@ Instruksi:
         ];
 
         return await postToAI(messages, {
-            temperature: 0.3
+            temperature: 0.4
         });
     } catch (error) {
         console.error("Outlook AI error:", error.message);
