@@ -12,7 +12,7 @@ const { sendBiasBroadcast } = require("./broadcast");
 const { sendShiftAlert } = require('./shiftAlert');
 const { sendSessionAlert } = require('./sessionAlert');
 
-async function runMacroCycle(client) {
+async function runMacroCycle(client, silent = false) {
 
   console.log("🔄 Running Macro Cycle...");
 
@@ -52,16 +52,16 @@ async function runMacroCycle(client) {
 
   // 8. Alerts
   if (shift) {
-    await sendShiftAlert(client, shift, narrative);
+    if (!silent) await sendShiftAlert(client, shift, narrative);
   }
   
-  await sendSessionAlert(client, session);
+  if (!silent) await sendSessionAlert(client, session);
 
   console.log("📊 Macro Updated");
   console.log(regime.regime, "|", intent.intent);
 
   // 9. Broadcast
-  await sendBiasBroadcast(
+  if (!silent) await sendBiasBroadcast(
     client,
     process.env.MACRO_CHANNEL_ID,
     regime,

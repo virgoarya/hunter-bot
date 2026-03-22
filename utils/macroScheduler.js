@@ -146,10 +146,10 @@ function startAllSchedulers(callbacks) {
 
     console.log("\n⏱️ All schedulers active!\n");
 
-    // Run initial macro update on startup
+    // Run initial macro update on startup (silent, no broadcast)
     if (callbacks.macroUpdate) {
-        console.log("🚀 Running initial macro update...");
-        callbacks.macroUpdate().catch((err) =>
+        console.log("🚀 Running initial macro update (Silent Mode)...");
+        callbacks.macroUpdate(true).catch((err) =>
             console.error("❌ Initial macro error:", err.message)
         );
     }

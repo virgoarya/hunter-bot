@@ -2,8 +2,11 @@ const { EmbedBuilder } = require("discord.js");
 const { fetchYahooPrice } = require("./yahooFinance");
 const { fetchStooqPrice } = require("./stooqService");
 const { fetchRepoData } = require("./repoService");
+const { getMacroState } = require("./macroData");
+const { classifyRegime } = require("./regime");
+const { postToAI } = require("../utils/aiProxy");
 
-const CACHE_MS = 2 * 60 * 1000; // 2 minutes cache
+const CACHE_MS = 5 * 60 * 1000; // 5 minutes cache (increased to reduce API calls)
 let flowCache = { data: null, updatedAt: 0 };
 
 const FLOW_INSTRUMENTS = [
@@ -70,15 +73,44 @@ async function fetchLiquidityFlow(forceRefresh = false) {
   // Aggregate flow analysis
   const usdFlow = calculateUSDFlow(results);
   const riskFlow = calculateRiskFlow(results);
-  
+
   // Fetch Repo Data
   const repoData = await fetchRepoData();
+
+  // Try to generate AI sync analysis
+  let aiInsight = "Analisis AI tidak tersedia saat ini.";
+  try {
+    const macroState = getMacroState();
+    let macroContext = "Data makro tidak tersedia.";
+    if (macroState && macroState.isHealthy) {
+        const regimeObj = classifyRegime(macroState);
+        macroContext = `Regime: ${regimeObj.regime}
+DXY: ${macroState.DXY?.close} (${macroState.DXY?.change})
+NASDAQ: ${macroState.NASDAQ?.close} (${macroState.NASDAQ?.change})
+GOLD: ${macroState.GOLD?.close} (${macroState.GOLD?.change})`;
+    }
+
+    const flowContext = `USD Flow: ${usdFlow}
+Risk Flow: ${riskFlow}
+Repo: ${repoData?.amountBillion}B (${repoData?.direction})`;
+
+    const prompt = [
+        { role: "system", content: "Kamu adalah analis kuantitatif senior. Berikan 1-2 kalimat analisa singkat (maks 30 kata) mengenai arah aliran likuiditas (flow) saat ini dan bagaimana sinkronisasinya dengan sentimen makro (regime). Gunakan bahasa Indonesia yang profesional namun to-the-point." },
+        { role: "user", content: `Data Makro:\n${macroContext}\n\nData Flow:\n${flowContext}\n\nBagaimana korelasi/sinkronisasi antara flow likuiditas saat ini dengan kondisi makro? Apakah mendukung atau anomali?` }
+    ];
+
+    console.log("🤖 Generating AI Insight for Flow...");
+    aiInsight = await postToAI(prompt, { temperature: 0.5, max_tokens: 150 });
+  } catch (err) {
+    console.error("AI Insight flow error:", err.message);
+  }
 
   const flowData = {
     instruments: results,
     usdFlow,
     riskFlow,
     repoData,
+    aiInsight,
     updatedAt: new Date().toISOString(),
   };
 
@@ -143,7 +175,7 @@ function formatFlowSummary(flowData) {
 
   summary += `\n💵 **Aliran USD**: ${flowData.usdFlow.replace(/_/g, " ")}`;
   summary += `\n📈 **Aliran Risiko**: ${flowData.riskFlow.replace(/_/g, " ")}`;
-  
+
   if (flowData.repoData && !flowData.repoData.error) {
     const sign = flowData.repoData.changePercent > 0 ? "+" : "";
     summary += `\n🏦 **ON RRP Balance**: $${flowData.repoData.amountBillion}B (${sign}${flowData.repoData.changePercent}%) | ${flowData.repoData.direction}`;
@@ -187,6 +219,10 @@ function buildFlowEmbed(flowData) {
     { name: "🎲 Aliran Risiko", value: `**${flowData.riskFlow.replace(/_/g, " ")}**`, inline: true },
     { name: "🏦 ON RRP (Liquidity)", value: repoStr, inline: false }
   );
+
+  if (flowData.aiInsight) {
+    embed.addFields({ name: "🧠 Sinkronisasi Makro & Flow", value: `*${flowData.aiInsight}*`, inline: false });
+  }
 
   return { embeds: [embed] };
 }

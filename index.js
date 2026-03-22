@@ -125,8 +125,8 @@ client.once(Events.ClientReady, async () => {
     },
 
     // Macro Update (Every 4 hours)
-    macroUpdate: async () => {
-      await sendMacroUpdate(client);
+    macroUpdate: async (silent = false) => {
+      await sendMacroUpdate(client, silent);
     },
 
     // COT Weekly (08:00 WIB Saturday)
