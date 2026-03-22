@@ -202,7 +202,7 @@ async function buildCOTBroadcast() {
     embed.setDescription(description);
 
     // Analysis/Interpretation (optional, but keep it if AI is fast)
-    const analysis = analyzeCOTChanges(cotData);
+    const analysis = analyzeCOTChanges(cotData, getMacroState());
     if (analysis) {
         const interpretation = await generateCOTInterpretation(cotData, analysis);
         if (interpretation) {
@@ -237,60 +237,76 @@ async function buildCOTBroadcast() {
 
 async function generateOutlookAnalysis(state, regime, bias, intent, session = "pagi") {
     try {
+        const { postToAI } = require("../utils/aiProxy");
         const divergences = detectDivergences(state);
-        const divText = divergences.length > 0 ? `\n\nDIVERGENSI TERDETEKSI:\n${divergences.join("\n")}` : "";
-
-        const systemPrompt = `
-Kamu adalah "Hunter", analis institutional desk profesional untuk komunitas trading Indonesia.
-Terapkan metode "Chain of Thought" (Langkah demi langkah) SEBELUM memberikan hasil akhir.
-
-LANGKAH BERPIKIR (Internal Reasoning - Tidak perlu ditulis di output, simpan sebagai proses berpikirmu):
-1. Identifikasi driver utama (Yield, Likuiditas, Repo, atau Sentimen).
-2. Analisis interaksi antar aset (contoh: DXY vs Yield, VIX vs Gold).
-3. Evaluasi apakah ada anomali atau divergensi institusional.
-4. Sintesis arah arus likuiditas (apakah risk-on sejati, defensif, atau deleveraging).
-
-TUGAS OUTPUT UTAMA:
-- Berikan narasi tajam untuk Sesi: ${session.toUpperCase()} berdasarkan data rezim makro, bias, intent institusional, dan divergensi (jika ada).
-- Output harus padat, tidak bertele-tele, gaya "Executive Summary" ala desk quant fund.
-- JANGAN menyebut "Langkah 1", "Langkah 2" di output. Langsung berikan insight akhirnya.
-- JANGAN mengarang angka baru. Gunakan data dari input secara kualitatif.
-- Jika ada "DIVERGENSI TERDETEKSI", jadikan itu fokus utama narasi (karena itu sinyal pergerakan smart money).
-
-FORMAT:
-- Mulai dengan: "Key takeaway [Sesi ${session}]: ..."
-- 2 paragraf pendek. Paragraf 1: Analisis makro & arah arus likuiditas. Paragraf 2: Implikasi & Peringatan Divergensi (jika ada).
-- Tutup dengan 1 kalimat: "Ini analisis edukatif, bukan saran transaksi."`;
+        const divText = divergences.length > 0 ? `
+DIVERGENSI: ${divergences.join(" | ")}` : "";
 
         const repoData = state?.RepoData;
-        const repoStr = repoData && !repoData.error ? `ON RRP: $id${repoData.amountBillion}B (${repoData.direction}, change: ${repoData.changePercent}%)` : "ON RRP: N/A";
+        const repoStr = repoData && !repoData.error ? `ON RRP: $id${repoData.amountBillion}B (${repoData.direction}, ${repoData.changePercent}%)` : "ON RRP: N/A";
 
-        const userContent = `
-Data makro saat ini:
-- Regime: ${regime.regime} (${regime.description})
-- Intent: ${intent.intent} (${intent.description})
-- Bias USD: ${bias.usdBias} | Bias Emas: ${bias.goldBias} | Bias Saham: ${bias.equityBias}
-- DXY: ${state?.DXY?.close ?? "N/A"} (${state?.DXY?.change ?? "0"})
-- GOLD: ${state?.GOLD?.close ?? "N/A"} (${state?.GOLD?.change ?? "0"})
-- NASDAQ: ${state?.NASDAQ?.close ?? "N/A"} (${state?.NASDAQ?.change ?? "0"})
-- US10Y: ${state?.US10Y?.close ?? "N/A"} (${state?.US10Y?.change ?? "0"})
-- VIX: ${state?.VIX?.close ?? "N/A"} (${state?.VIX?.change ?? "0"})
-- ${repoStr}${divText}
+        // Agent 1: Rates & FX Analyst
+        const ratesPrompt = `Kamu adalah Rates & FX Analyst institusional. Fokus analisis: Yield (US10Y), Dolar (DXY), Emas (GOLD).
+Analisis keterkaitan antara imbal hasil obligasi AS dan valuasi mata uang/emas saat ini. Apakah pasar obligasi sedang menekan pasar FX, atau sebaliknya? Berikan 1 paragraf padat.`;
+        
+        const ratesData = `DXY: ${state?.DXY?.close ?? "N/A"} (${state?.DXY?.change ?? "0"})
+US10Y: ${state?.US10Y?.close ?? "N/A"} (${state?.US10Y?.change ?? "0"})
+GOLD: ${state?.GOLD?.close ?? "N/A"} (${state?.GOLD?.change ?? "0"})`;
 
-Instruksi tambahan:
-Integrasikan semua ini menjadi analisa komprehensif. Jelaskan "MENGAPA" pasar bergerak seperti ini, bukan sekadar "APA" yang terjadi.`;
+        const ratesCall = postToAI([
+            { role: "system", content: ratesPrompt },
+            { role: "user", content: ratesData }
+        ], { temperature: 0.3, max_tokens: 300 });
 
-        const { postToAI } = require("../utils/aiProxy");
-        const messages = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent }
-        ];
+        // Agent 2: Liquidity & Equities Analyst
+        const liquidityPrompt = `Kamu adalah Liquidity & Equities Analyst institusional. Fokus analisis: Saham (NASDAQ), Likuiditas The Fed (ON RRP), dan Volatilitas (VIX).
+Analisis apakah kondisi likuiditas saat ini mendukung sentimen ambil risiko (risk-on) pada ekuitas atau justru menunjukkan pengetatan dan pelarian ke kas. Berikan 1 paragraf padat.`;
 
-        return await postToAI(messages, {
-            temperature: 0.4
-        });
+        const liquidityData = `NASDAQ: ${state?.NASDAQ?.close ?? "N/A"} (${state?.NASDAQ?.change ?? "0"})
+VIX: ${state?.VIX?.close ?? "N/A"} (${state?.VIX?.change ?? "0"})
+Repo/Likuiditas: ${repoStr}`;
+
+        const liquidityCall = postToAI([
+            { role: "system", content: liquidityPrompt },
+            { role: "user", content: liquidityData }
+        ], { temperature: 0.3, max_tokens: 300 });
+
+        // Execute sub-agents concurrently
+        const [ratesInsight, liquidityInsight] = await Promise.all([ratesCall, liquidityCall]);
+
+        // Master Agent: Head of Macro
+        const masterPrompt = `Kamu adalah "Hunter", Head of Macro di sebuah quant fund terkemuka.
+Tugas Anda adalah mensintesis laporan dari tim Anda (Rates Analyst & Liquidity Analyst) menjadi sebuah Executive Summary yang tajam untuk sesi ${session.toUpperCase()}.
+
+GAYA & FORMAT:
+- Bahasa Indonesia dengan istilah trading profesional.
+- Mulai dengan: "Key takeaway [Sesi ${session}]: ..."
+- Paragraf 1: Ringkasan narasi makro utama (sintesis dari laporan tim).
+- Paragraf 2: Implikasi & Peringatan anomali (terutama jika ada DIVERGENSI yang terdeteksi, jadikan ini fokus).
+- Tutup dengan 1 kalimat: "Ini analisis edukatif, bukan saran transaksi."
+- JANGAN menyebut "Menurut analis Rates" atau "Menurut analis Likuiditas". Sajikan sebagai satu kesatuan opini desk Anda.
+- JANGAN menggunakan poin-poin panjang, gunakan format paragraf.`;
+
+        const masterData = `Data Tambahan:
+Regime: ${regime.regime} (${regime.description})
+Intent: ${intent.intent} (${intent.description})
+${divText}
+
+Laporan Tim Rates & FX:
+${ratesInsight}
+
+Laporan Tim Likuiditas & Ekuitas:
+${liquidityInsight}
+
+Buat Executive Summary sekarang.`;
+
+        return await postToAI([
+            { role: "system", content: masterPrompt },
+            { role: "user", content: masterData }
+        ], { temperature: 0.4, max_tokens: 600 });
+
     } catch (error) {
-        console.error("Outlook AI error:", error.message);
+        console.error("Outlook AI (MoE) error:", error.message);
         return null;
     }
 }
