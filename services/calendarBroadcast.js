@@ -273,18 +273,36 @@ Hal ini termasuk DXY +0.8% karena data CPI lebih tinggi dari forecast, meningkat
         calendarEmbed.addFields({ name: `🗓️ ${dateKey.toUpperCase()}`, value: dayText || "_Tidak ada_", inline: false });
     }
 
-    // Build separate embed for What-If Scenario
-    let scenarioEmbed = null;
+    // Build separate embeds for each event's What-If Scenario
+    const scenarioEmbeds = [];
     if (scenarioDisplay && scenarioDisplay !== "Menganalisa skenario pasar...") {
-        scenarioEmbed = new EmbedBuilder()
-            .setTitle("🔮 What-If Scenario Analysis")
-            .setColor("#9b59b6")
-            .setDescription(`*${scenarioDisplay}*`)
-            .setTimestamp()
-            .setFooter({ text: "Hunter Bot • Macro Context" });
+        // Split by event sections: [Event 1]:, [Event 2]: etc.
+        const sections = scenarioDisplay.split(/(?=\[Event \d+:\])/).filter(s => s.trim());
+
+        sections.forEach((section, idx) => {
+            if (idx >= topEvents.length) return;
+            const event = topEvents[idx];
+            const embed = new EmbedBuilder()
+                .setTitle(`🔮 What-If: ${event.event} (${event.country})`)
+                .setColor("#9b59b6")
+                .setDescription(`**${section.trim()}**`)
+                .setTimestamp()
+                .setFooter({ text: `Hunter Bot • ${todayWib}` });
+            scenarioEmbeds.push(embed);
+        });
+
+        // If splitting failed (no sections), fallback to single embed
+        if (sections.length === 0 || scenarioEmbeds.length === 0) {
+            scenarioEmbeds.push(new EmbedBuilder()
+                .setTitle("🔮 What-If Scenario Analysis")
+                .setColor("#9b59b6")
+                .setDescription(`*${scenarioDisplay}*`)
+                .setTimestamp()
+                .setFooter({ text: `Hunter Bot • ${todayWib}` }));
+        }
     }
 
-    return { embeds: scenarioEmbed ? [calendarEmbed, scenarioEmbed] : [calendarEmbed] };
+    return { embeds: [calendarEmbed, ...scenarioEmbeds] };
 }
 
 async function getHighImpactAlerts() {
