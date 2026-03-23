@@ -84,78 +84,100 @@ ${marketContext}
 
 ## PROTOKOL ANALISIS:
 
-**1. BEAT/MISS/IN-LINE QUANTIFICATION**
-For EACH event:
-- Expected move magnitude (based on historical avg impact): DXY ±X bps, Gold ±Y$, etc.
-- If BEAT > forecast by >0.5% for CPI/NFP, expect immediate reaction.
-- If MISS > forecast by >0.5%, opposite reaction.
-- If in-line, reaction minimal (often fade).
+**1. KUALIFIKASI BEAT/MISS/IN-LINE**
+Untuk SETIAP event:
+-Estimasi magnitudo dampak (berdasarkan avg dampak historis): DXY ±X bps, Gold ±Y$, dll.
+- Jika BEAT > forecast dengan >0.5% untuk CPI/NFP, expect reaksi langsung.
+- Jika MISS > forecast dengan >0.5%, reaksi sebaliknya.
+- Jika in-line, reaksi minimal (sering fade).
 
-**2. CAUSE-EFFECT CHAIN (MUST EXPLAIN)**
-Do not just state "DXY strengthens". Explain WHY:
-Example: "Higher CPI → Fed tightening expectations ↑ → USD demand ↑ → DXY +0.5% within 1 hour"
+**2. CHAIN CAUSE-EFFECT (WAJIB JELASKAN)**
+Jangan hanya bilang "DXY menguat". Jelaskan MENGAPA:
+Contoh: "Higher CPI → Ekspektasi Fed hawkish ↑ → Permintaan USD ↑ → DXY +0.5% dalam 1 jam"
 
-**3. REGIME CONTEXT**
-- How does current regime (${regime.regime}) color the reaction?
-- Example: In RISK-OFF regime, even positive data may be seen as "bad" (keeps Fed hawkish → hurts equities).
-- Example: In INFLATION regime, any hot data reinforces Tighter-for-Longer narrative.
+**3. KONTEKS REGIME**
+- Bagaimana regime saat ini (${regime.regime}) mempengaruhi reaksi?
+- Contoh: Dalam regime RISK-OFF, data positif pun bisa dianggap "buruk" (karena manterkan Fed hawkish → hurts equities).
+- Contoh: Dalam regime INFLASI, data panas apapun menguatkan narasi "Tighter-for-Longer".
 
-**4. REGIME SHIFT IMPACT**${regimeShiftInfo ? '- Market transitioning regimes changes interpretation of data. Explain OLD vs NEW regime lens.' : ''}
+**4. DAMPAK REGIME SHIFT**${regimeShiftInfo ? '- Pasar sedang transisi regimes, interpretasi data berubah. Jelaskan lensa OLD vs NEW.' : ''}
 
-**5. DIVERGENCE CONSIDERATION**${divText ? '- Smart money may have already positioned. Divergence suggests potential squeeze/reversal.' : ''}
+**5. PERTIMBANGAN DIVERGENSI**${divText ? '- Smart money mungkin sudah position. Divergensi menandakan potensi squeeze/reversal.' : ''}
 
-**6. TIMEFRAME & FADE POTENTIAL**
-- Intraday (2-4h): Initial algo reaction, may fade if data priced-in.
-- Short-term (1-3d): Sustained move if data changes Fed/inflation narrative.
-- Structural (>1w): Rare, requires regime change or policy shift.
-- Fade risk: Assess if deviation was small (<0.3%) → likely already priced.
+**6. TIMEFRAME & POTENSI FADE**
+- Intraday (2-4 jam): Reaksi algo awal, mungkin fade jika data sudah priced-in.
+- Short-term (1-3 hari): Gerakan berkelanjutan jika data ubah narasi Fed/inflasi.
+- Structural (>1 minggu): Langka, butuh regime change atau policy shift.
+- Risiko fade: Jika deviasi kecil (<0.3%) → likely sudah priced.
 
 **7. CONFIDENCE & TRIGGER**
 - Confidence: High (>75%) / Medium (50-75%) / Low (<50%)
-- Key trigger level: "If CPI > 3.5%, DXY +0.8% within 2h"
-- Invalidation: "If Core CPI < 3.0%, thesis wrong"
+- Key trigger level: "Jika CPI > 3.5%, DXY +0.8% dalam 2 jam"
+- Invalidation: "Jika Core CPI < 3.0%, thesis wrong"
 
 ## OUTPUT FORMAT:
 
 **WHAT-IF SCENARIO ANALYSIS**
 
-[Event 1 Name]:
+[Nama Event 1]:
 BEAT/MISS: [ ] dengan deviasi [X]%
-即刻 dampak: DXY ±X bps, Gold ±Y$, Nasdaq ±Z%
+Dampak instan: DXY ±X bps, Gold ±Y$, Nasdaq ±Z$
 Mechanism: (Jelaskan cause-effect chain dalam 1-2 kalimat)
-Regime filter: (How ${regime.regime} regime modifies reaction?)
+Regime filter: (Bagaimana regime ${regime.regime} memodifikasi reaksi?)
 Timeframe: [intraday / short-term / structural]
 Confidence: [High/Med/Low] - alasan singkat
-Key trigger: "[Specific condition]"
-Invalidation: "[Opposite condition]"
+Key trigger: "[Condition spesifik]"
+Invalidation: "[Condition sebaliknya]"
 
-[Event 2 Name]: (same structure)
+[Nama Event 2]: (struktur sama)
 [...]
 
-**CONSOLIDATED BIAS FOR WEEK:**
-Based on combined event impact:
+**CONSOLIDATED BIAS MINGGU INI:**
+Berdasarkan dampak gabungan event:
 - Risk-On / Risk-Off / Neutral
 - DXY bias: [Long/Short/Neutral]
 - Gold bias: [Long/Short/Neutral]
-- Note any expected reversal/fade conditions.
+- Catatan reversal/fade conditions yang diharapkan.
 
-## RULES:
+## ATURAN:
 - Gunakan angka spesifik dari konteks (DXY 104.5, bukan "DXY saat ini").
 - Jangan Meredith data yang diberikan.
 - Jangan mulai dengan "Sebagai Senior Macro Analyst..." - langsung ke analisis.
-- Output应精简但必须包含所有关键要素.
+- Output harus lengkap namun padat, including semua key elements.
+
+CATATAN PENTING: Seluruh analisis harus dalam BAHASA INDONESIA. Hindari kata-kata bahasa Inggris seperti "beat", "miss", "fade", "trigger". Gunakan terjemahan Indonesia yang tepat.
+
+CONTOH TERJEMAHAN:
+- BEAT → "lebih tinggi dari forecast" / "kebelokan"
+- MISS → "lebih rendah dari forecast" / "lembek"
+- IN-LINE → "sesuai forecast" / "inline"
+- FADE → "lemah" / "tidak bertahan"
+- TRIGGER → "pemicu" / "level kunci"
+- LONG → "long" / "beli"
+- SHORT → "short" / "jual"
+
+Output your entire analysis in Indonesian. Do NOT use English sentences.
 `;
 
-                const systemContent = `Kamu adalah Senior Macro Analyst Institutional Desk yang menganalisis What-If scenario dengan critical thinking framework.
+                const systemContent = `Kamu adalah Senior Macro Analyst di Institutional Desk yang memberikan analisis What-If scenario dengan critical thinking framework.
 
-PRINSIP:
-1. Quantitative: Berikan angka dampak perkiraan (DXY ±X bps, Gold ±Y$).
-2. Mechanism: Jelaskan WHY reaksi akan terjadi (cause-effect).
-3. Regime-aware: InterpretasiBergantung pada rezim pasar saat ini.
-4. Uncertainty: Confidence rating + invalidation condition.
-5.Precision: Gunakan data spesifik dari konteks, jangan approximate.
+**BAHASA: OUTPUT HARUS 100% BAHASA INDONESIA**
+- JANGAN gunakan kalimat bahasa Inggris.
+- Istilah teknis (DXY, US10Y, Gold, Nasdaq) boleh di-spell, tapi penjelasan harus Indonesia.
+- Contoh: "DXY akan menguat 0.5%" (BENAR), bukan "DXY will strengthen 0.5%" (SALAH).
 
-Output HANYA berisi analisis sesuai format di atas, tanpa pengenalan atau sambutan. Langsung ke "WHAT-IF SCENARIO ANALYSIS".`;
+**PRINSIP ANALISIS:**
+1. KUANTITATIF: Berikan perkiraan dampak numerik (DXY ±X bps, Gold ±Y$, Nasdaq ±Z%).
+2. MEKANISME: Jelaskan alur sebab-akibat (WHY reaksi terjadi).
+3. REGIME-AWARE: Interpretasi Bergantung pada rezim pasar saat ini.
+4. UNCERTAINTY: Berikan Confidence rating (High/Med/Low) + kondisi invalidasi.
+5. PRECISI: Gunakan data spesifik dari konteks, jangan approximate.
+
+Output HANYA berisi analisis sesuai format di atas. Tidak pengenalan/sambutan. Langsung ke "ANALISIS WHAT-IF SCENARIO".
+
+**CONTOH OUTPUT BAHAWA:**
+Hal ini termasuk DXY +0.8% karena data CPI lebih tinggi dari forecast, meningkatkan ekspektasi Fed hawkish. Dalam regime INFLASI, ini плохой untuk equities. Confidence: High (80%).
+`;
 
                 const messages = [
                     { role: "system", content: systemContent },
