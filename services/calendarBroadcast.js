@@ -70,7 +70,7 @@ HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "
                     { role: "system", content: "Kamu adalah Senior Macro Analyst yang memberikan analisis What-IF berbasis regime untuk event ekonomi besar. Output HANYA berisi analisis, tanpa pengenalan 'Sebagai...', 'Berikut...', atau 'Analisis...'. Langsung ke inti." },
                     { role: "user", content: prompt }
                 ];
-                const rawResponse = await postToAI(messages, { temperature: 0.6, max_tokens: 500 });
+                const rawResponse = await postToAI(messages, { temperature: 0.6, max_tokens: 800 });
 
                 // Clean up: Remove any meta-commentary
                 whatIfScenario = rawResponse
@@ -91,10 +91,10 @@ HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "
         }
     }
 
-    // Truncate if needed for Discord embed field limit (1024 chars)
+    // Truncate if needed for Discord embed description limit (4096 chars)
     let scenarioDisplay = whatIfScenario;
-    if (scenarioDisplay && scenarioDisplay.length > 1000) {
-        scenarioDisplay = scenarioDisplay.substring(0, 997) + "...";
+    if (scenarioDisplay && scenarioDisplay.length > 4000) {
+        scenarioDisplay = scenarioDisplay.substring(0, 3997) + "...";
     }
 
     const calendarEmbed = new EmbedBuilder()
