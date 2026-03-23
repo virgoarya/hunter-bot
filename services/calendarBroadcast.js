@@ -56,8 +56,21 @@ async function buildCalendarBroadcast() {
             const divergences = detectDivergences(state);
             const divText = divergences.length > 0 ? `\nDIVERGENSI TERDETEKSI: ${divergences.join(" | ")}` : "";
 
-            // Cari event paling penting minggu ini
-            const topEvents = events.filter(e => e.impact === "High" && e.event && !e.event.toLowerCase().includes("holiday")).slice(0, 2);
+            // Cari event paling penting HARI INI (WIB) - untuk What-If yang fokus dan relevan
+            const todayWib = new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
+            const todayEvents = events.filter(e => {
+                if (!e.date || e.impact !== "High" || e.event.toLowerCase().includes("holiday")) return false;
+                try {
+                    const eventDate = new Date(e.date);
+                    const eventDateWib = eventDate.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
+                    return eventDateWib === todayWib;
+                } catch {
+                    return false;
+                }
+            }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by time ascending
+
+            // Ambil maksimal 2 event paling penting hari ini
+            const topEvents = todayEvents.slice(0, 2);
 
             if (topEvents.length > 0) {
                 const eventNames = topEvents.map(e => `\`${e.event} (${e.country})\``).join(" dan ");
@@ -197,7 +210,13 @@ Hal ini termasuk DXY +0.8% karena data CPI lebih tinggi dari forecast, meningkat
                     whatIfScenario = rawResponse.trim();
                 }
             } else {
-                whatIfScenario = "Tidak ada event tier-1 berdampak tinggi minggu ini.";
+                // Check if there are high-impact events in the next 3 days but none today
+                const upcomingHighImpact = events.filter(e => e.impact === "High" && e.event && !e.event.toLowerCase().includes("holiday"));
+                if (upcomingHighImpact.length > 0) {
+                    whatIfScenario = "Hari ini tidak ada event high-impact yang dijadwalkan rilis. What-If scenario akan diaktifkan kembali ketika ada event penting hari ini.";
+                } else {
+                    whatIfScenario = "Tidak ada event high-impact dalam 3 hari ke depan. Monitor kalender untuk update.";
+                }
             }
         } catch (e) {
             console.error("What-If AI Error:", e.message);
