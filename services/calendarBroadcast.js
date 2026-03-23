@@ -40,48 +40,137 @@ async function buildCalendarBroadcast() {
     if (state && state.isHealthy) {
         try {
             const regime = classifyRegime(state);
+
+            // Detect regime shift if available
+            let regimeShiftInfo = "";
+            try {
+                const { getHistoricalRegime } = require("./regimeTracker");
+                const prevRegime = getHistoricalRegime(1);
+                if (prevRegime && prevRegime !== regime.regime) {
+                    regimeShiftInfo = `\nREGIME SHIFT: ${prevRegime} → ${regime.regime} (Market interpreting through new regime lens)`;
+                }
+            } catch (e) {}
+
+            // Get correlation patterns
+            const { detectDivergences } = require("./correlationEngine");
+            const divergences = detectDivergences(state);
+            const divText = divergences.length > 0 ? `\nDIVERGENSI TERDETEKSI: ${divergences.join(" | ")}` : "";
+
             // Cari event paling penting minggu ini
             const topEvents = events.filter(e => e.impact === "High" && e.event && !e.event.toLowerCase().includes("holiday")).slice(0, 2);
 
             if (topEvents.length > 0) {
                 const eventNames = topEvents.map(e => `\`${e.event} (${e.country})\``).join(" dan ");
+                const eventList = topEvents.map(e => `- ${e.event} (${e.country})`).join("\n");
+
+                // Extract key market levels for context
+                const marketContext = `
+DXY: ${state.DXY?.close ?? "N/A"} (${state.DXY?.change ?? "0"}%)
+US10Y: ${state.US10Y?.close ?? "N/A"}% (${state.US10Y?.change ?? "0"}%)
+NASDAQ: ${state.NASDAQ?.close ?? "N/A"} (${state.NASDAQ?.change ?? "0"}%)
+GOLD: ${state.GOLD?.close ?? "N/A"} (${state.GOLD?.change ?? "0"}%)
+VIX: ${state.VIX?.close ?? "N/A"}
+${regimeShiftInfo}${divText}`;
 
                 const prompt = `
-Kamu adalah Senior Macro Analyst di Institutional Desk.
+## WHAT-IF SCENARIO ANALYSIS - CRITICAL THINKING FRAMEWORK
+
+EVENT YANG AKAN DIRILIS:
+${eventList}
 
 KONTEKS PASAR SAAT INI:
 - Rezim: ${regime.regime} (${regime.description})
+${marketContext}
 
-EVENT YANG AKAN DIRILIS:
-${eventNames}
+## PROTOKOL ANALISIS:
 
-TUGAS:
-Buatkan analisis "What-If Scenario" yang komprehensif untuk data-release tersebut. Output harus dalam 2-3 paragraf padat (150-250 kata) dengan struktur:
+**1. BEAT/MISS/IN-LINE QUANTIFICATION**
+For EACH event:
+- Expected move magnitude (based on historical avg impact): DXY ±X bps, Gold ±Y$, etc.
+- If BEAT > forecast by >0.5% for CPI/NFP, expect immediate reaction.
+- If MISS > forecast by >0.5%, opposite reaction.
+- If in-line, reaction minimal (often fade).
 
-**Paragraf 1**: Jelaskan skenario BEAT vs MISS vs IN-LINE terhadap forecast, dan dampak instan ke DXY, Gold, NASDAQ/US10Y.
+**2. CAUSE-EFFECT CHAIN (MUST EXPLAIN)**
+Do not just state "DXY strengthens". Explain WHY:
+Example: "Higher CPI → Fed tightening expectations ↑ → USD demand ↑ → DXY +0.5% within 1 hour"
 
-**Paragraf 2**: Kaitkan dengan narasi makro saat ini (apakah perubahan data ini akan mengubah ekspektasi Fed? Apakah memperkuat/melemahkan narasi inflasi/growth?)
+**3. REGIME CONTEXT**
+- How does current regime (${regime.regime}) color the reaction?
+- Example: In RISK-OFF regime, even positive data may be seen as "bad" (keeps Fed hawkish → hurts equities).
+- Example: In INFLATION regime, any hot data reinforces Tighter-for-Longer narrative.
 
-**Paragraf 3** (opsional): Berikan bias trading singkat (risk-on/off,避险/risk assets) untuk timeframe intraday hingga 1 minggu.
+**4. REGIME SHIFT IMPACT**${regimeShiftInfo ? '- Market transitioning regimes changes interpretation of data. Explain OLD vs NEW regime lens.' : ''}
 
-HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "Sebagai Senior Macro Analyst..." atau "Analisis ini...". LGSG berikan analisisnya.`;
+**5. DIVERGENCE CONSIDERATION**${divText ? '- Smart money may have already positioned. Divergence suggests potential squeeze/reversal.' : ''}
+
+**6. TIMEFRAME & FADE POTENTIAL**
+- Intraday (2-4h): Initial algo reaction, may fade if data priced-in.
+- Short-term (1-3d): Sustained move if data changes Fed/inflation narrative.
+- Structural (>1w): Rare, requires regime change or policy shift.
+- Fade risk: Assess if deviation was small (<0.3%) → likely already priced.
+
+**7. CONFIDENCE & TRIGGER**
+- Confidence: High (>75%) / Medium (50-75%) / Low (<50%)
+- Key trigger level: "If CPI > 3.5%, DXY +0.8% within 2h"
+- Invalidation: "If Core CPI < 3.0%, thesis wrong"
+
+## OUTPUT FORMAT:
+
+**WHAT-IF SCENARIO ANALYSIS**
+
+[Event 1 Name]:
+BEAT/MISS: [ ] dengan deviasi [X]%
+即刻 dampak: DXY ±X bps, Gold ±Y$, Nasdaq ±Z%
+Mechanism: (Jelaskan cause-effect chain dalam 1-2 kalimat)
+Regime filter: (How ${regime.regime} regime modifies reaction?)
+Timeframe: [intraday / short-term / structural]
+Confidence: [High/Med/Low] - alasan singkat
+Key trigger: "[Specific condition]"
+Invalidation: "[Opposite condition]"
+
+[Event 2 Name]: (same structure)
+[...]
+
+**CONSOLIDATED BIAS FOR WEEK:**
+Based on combined event impact:
+- Risk-On / Risk-Off / Neutral
+- DXY bias: [Long/Short/Neutral]
+- Gold bias: [Long/Short/Neutral]
+- Note any expected reversal/fade conditions.
+
+## RULES:
+- Gunakan angka spesifik dari konteks (DXY 104.5, bukan "DXY saat ini").
+- Jangan Meredith data yang diberikan.
+- Jangan mulai dengan "Sebagai Senior Macro Analyst..." - langsung ke analisis.
+- Output应精简但必须包含所有关键要素.
+`;
+
+                const systemContent = `Kamu adalah Senior Macro Analyst Institutional Desk yang menganalisis What-If scenario dengan critical thinking framework.
+
+PRINSIP:
+1. Quantitative: Berikan angka dampak perkiraan (DXY ±X bps, Gold ±Y$).
+2. Mechanism: Jelaskan WHY reaksi akan terjadi (cause-effect).
+3. Regime-aware: InterpretasiBergantung pada rezim pasar saat ini.
+4. Uncertainty: Confidence rating + invalidation condition.
+5.Precision: Gunakan data spesifik dari konteks, jangan approximate.
+
+Output HANYA berisi analisis sesuai format di atas, tanpa pengenalan atau sambutan. Langsung ke "WHAT-IF SCENARIO ANALYSIS".`;
 
                 const messages = [
-                    { role: "system", content: "Kamu adalah Senior Macro Analyst yang memberikan analisis What-IF berbasis regime untuk event ekonomi besar. Output HANYA berisi analisis, tanpa pengenalan 'Sebagai...', 'Berikut...', atau 'Analisis...'. Langsung ke inti." },
+                    { role: "system", content: systemContent },
                     { role: "user", content: prompt }
                 ];
-                const rawResponse = await postToAI(messages, { temperature: 0.6, max_tokens: 1000 });
+                const rawResponse = await postToAI(messages, { temperature: 0.5, max_tokens: 1000 });
 
-                // Debug: Log raw response length
                 console.log(`📦 Raw What-If response: ${rawResponse.length} chars`);
 
-                // Clean up: Remove any meta-commentary
+                // Clean up
                 whatIfScenario = rawResponse
                     .replace(/^(Sebagai Senior Macro Analyst|Saya adalah|Analisis What-IF|Berikut analisis|Konteks|EVENT|TUGAS)[^\n]*\n*/i, '')
                     .replace(/^Analysis|Scenario:?\s*/i, '')
                     .trim();
 
-                // Fallback
                 if (!whatIfScenario || whatIfScenario.length < 30) {
                     whatIfScenario = rawResponse.trim();
                 }
