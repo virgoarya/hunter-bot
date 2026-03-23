@@ -56,20 +56,32 @@ EVENT YANG AKAN DIRILIS:
 ${eventNames}
 
 TUGAS:
-Buatkan analisis "What-If Scenario" yang komprehensif untuk data-release tersebut. Jelaskan:
+Buatkan analisis "What-If Scenario" yang komprehensif untuk data-release tersebut. Output harus dalam 2-3 paragraf padat (150-250 kata) dengan struktur:
 
-1. **Skenario BEAT/MISS/IN-LINE** terhadap forecast
-2. **Dampak langsung** ke aset: DXY (USD), Gold, NASDAQ/US10Y
-3. **Reaksi Federal Reserve** (apakah memengaruhi ekspektasi rate cut/hike)
-4. **Kaitannya dengan narasi makro saat ini** (inflasi, growth, risk-on/off)
-5. **Berikan bias untuk trading intraday/swing** berdasarkan skenario
+**Paragraf 1**: Jelaskan skenario BEAT vs MISS vs IN-LINE terhadap forecast, dan dampak instan ke DXY, Gold, NASDAQ/US10Y.
 
-Gunakan format paragraf padat, maksimal 150-200 kata. Gunakan bahasa Indonesia profesional bergaya kantor institusional.`;
+**Paragraf 2**: Kaitkan dengan narasi makro saat ini (apakah perubahan data ini akan mengubah ekspektasi Fed? Apakah memperkuat/melemahkan narasi inflasi/growth?)
 
-                whatIfScenario = await postToAI([
-                    { role: "system", content: "Kamu adalah Senior Macro Analyst yang memberikan analisis What-If berbasis regime untuk event ekonomi besar. Berikan insight mendalam, bukan sekadar permukaan." },
+**Paragraf 3** (opsional): Berikan bias trading singkat (risk-on/off,避险/risk assets) untuk timeframe intraday hingga 1 minggu.
+
+HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "Sebagai Senior Macro Analyst..." atau "Analisis ini...". LGSG berikan analisisnya.`;
+
+                const messages = [
+                    { role: "system", content: "Kamu adalah Senior Macro Analyst yang memberikan analisis What-IF berbasis regime untuk event ekonomi besar. Output HANYA berisi analisis, tanpa pengenalan 'Sebagai...', 'Berikut...', atau 'Analisis...'. Langsung ke inti." },
                     { role: "user", content: prompt }
-                ], { temperature: 0.6, max_tokens: 350 });
+                ];
+                const rawResponse = await postToAI(messages, { temperature: 0.6, max_tokens: 500 });
+
+                // Clean up: Remove any meta-commentary
+                whatIfScenario = rawResponse
+                    .replace(/^(Sebagai Senior Macro Analyst|Saya adalah|Analisis What-IF|Berikut analisis|Konteks|EVENT|TUGAS)[^\n]*\n*/i, '')
+                    .replace(/^Analysis|Scenario:?\s*/i, '')
+                    .trim();
+
+                // Fallback
+                if (!whatIfScenario || whatIfScenario.length < 30) {
+                    whatIfScenario = rawResponse.trim();
+                }
             } else {
                 whatIfScenario = "Tidak ada event tier-1 berdampak tinggi minggu ini.";
             }
@@ -79,11 +91,17 @@ Gunakan format paragraf padat, maksimal 150-200 kata. Gunakan bahasa Indonesia p
         }
     }
 
+    // Truncate if needed for Discord embed field limit (1024 chars)
+    let scenarioDisplay = whatIfScenario;
+    if (scenarioDisplay && scenarioDisplay.length > 1000) {
+        scenarioDisplay = scenarioDisplay.substring(0, 997) + "...";
+    }
+
     const embed = new EmbedBuilder()
         .setTitle("📅 KALENDER EKONOMI MINGGUAN")
         .setColor("#3498db")
         .setDescription("Peristiwa institusional utama dalam radar minggu ini.")
-        .addFields({ name: "🔮 Skenario 'What-If' (Macro Context)", value: `*${whatIfScenario}*`, inline: false })
+        .addFields({ name: "🔮 Skenario 'What-If' (Macro Context)", value: `*${scenarioDisplay || "Tidak tersedia"}*`, inline: false })
         .setTimestamp()
         .setFooter({ text: "Semua waktu dalam WIB (UTC+7)" });
 
