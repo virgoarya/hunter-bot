@@ -48,9 +48,9 @@ async function buildCalendarBroadcast() {
 
                 const prompt = `
 Kamu adalah Senior Macro Analyst.
-Konteks Pasar Saat Ini: Rezim \${regime.regime} (\${regime.description}).
+Konteks Pasar Saat Ini: Rezim ${regime.regime} (${regime.description}).
 
-Minggu ini ada rilis data penting: \${eventNames}.
+Minggu ini ada rilis data penting: ${eventNames}.
 Tulis 1 paragraf singkat (maks 40 kata) berisi "What-If Scenario" (Skenario Jika-Maka) untuk event tersebut berdasarkan rezim saat ini.
 Contoh format: "Karena pasar fokus pada inflasi, JIKA [Event] dirilis lebih tinggi dari ekspektasi, maka [Aset X] akan anjlok dan [Aset Y] reli. Sebaliknya, JIKA lebih rendah..."`;
 
@@ -71,7 +71,7 @@ Contoh format: "Karena pasar fokus pada inflasi, JIKA [Event] dirilis lebih ting
         .setTitle("📅 KALENDER EKONOMI MINGGUAN")
         .setColor("#3498db")
         .setDescription("Peristiwa institusional utama dalam radar minggu ini.")
-        .addFields({ name: "🔮 Skenario 'What-If' (Macro Context)", value: `*\${whatIfScenario}*`, inline: false })
+        .addFields({ name: "🔮 Skenario 'What-If' (Macro Context)", value: `*${whatIfScenario}*`, inline: false })
         .setTimestamp()
         .setFooter({ text: "Semua waktu dalam WIB (UTC+7)" });
 
