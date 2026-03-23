@@ -86,9 +86,9 @@ VIX: ${state.VIX?.close ?? "N/A"}
 ${regimeShiftInfo}${divText}`;
 
                 const prompt = `
-## WHAT-IF SCENARIO ANALYSIS - CRITICAL THINKING FRAMEWORK
+## WHAT-IF SCENARIO ANALYSIS - HARI INI (${todayWib})
 
-EVENT YANG AKAN DIRILIS:
+EVENT YANG AKAN DIRILIS HARI INI:
 ${eventList}
 
 KONTEKS PASAR SAAT INI:
