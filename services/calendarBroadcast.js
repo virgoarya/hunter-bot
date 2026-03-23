@@ -161,7 +161,7 @@ Output HANYA berisi analisis sesuai format di atas, tanpa pengenalan atau sambut
                     { role: "system", content: systemContent },
                     { role: "user", content: prompt }
                 ];
-                const rawResponse = await postToAI(messages, { temperature: 0.5, max_tokens: 600 });
+                const rawResponse = await postToAI(messages, { temperature: 0.5, max_tokens: 800 });
 
                 console.log(`📦 Raw What-If response: ${rawResponse.length} chars`);
 
@@ -184,13 +184,13 @@ Output HANYA berisi analisis sesuai format di atas, tanpa pengenalan atau sambut
     }
 
     // Truncate if needed for Discord embed description limit (4096 chars)
-    // With max_tokens 600, expected length ~2400-3000 chars, but safe guard at 3500
+    // With max_tokens 800, expected length ~3000-3800 chars, safe guard at 3800
     let scenarioDisplay = whatIfScenario;
     const originalLength = scenarioDisplay?.length || 0;
-    if (scenarioDisplay && scenarioDisplay.length > 3500) {
-        scenarioDisplay = scenarioDisplay.substring(0, 3497) + "...";
+    if (scenarioDisplay && scenarioDisplay.length > 3800) {
+        scenarioDisplay = scenarioDisplay.substring(0, 3797) + "...";
         console.log(`⚠️ What-If scenario truncated from ${originalLength} to ${scenarioDisplay.length} chars`);
-    } else if (scenarioDisplay && scenarioDisplay.length > 2500) {
+    } else if (scenarioDisplay && scenarioDisplay.length > 3000) {
         console.log(`📏 What-If scenario length: ${scenarioDisplay.length} chars`);
     }
 
