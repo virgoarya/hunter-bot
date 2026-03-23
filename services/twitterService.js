@@ -3,6 +3,22 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 
+// Utility: Strip HTML tags, preserve line breaks
+function cleanHtml(html) {
+    if (!html) return '';
+    // Convert <br> tags to newlines
+    let text = html.replace(/<br\s*\/?>/gi, '\n');
+    // Convert paragraph tags to newlines
+    text = text.replace(/<[/]?p[^>]*>/gi, '\n');
+    // Convert list items to newlines
+    text = text.replace(/<[/]?li[^>]*>/gi, '\n');
+    // Remove any remaining HTML tags
+    text = text.replace(/<[^>]+>/g, '');
+    // Decode HTML entities and trim using cheerio
+    const $ = cheerio.load('<div>' + text + '</div>');
+    return $.text().trim();
+}
+
 const CACHE_FILE = path.join(__dirname, "../twitter_cache.json");
 const RSS_URLS = [
     "https://nitter.net/KobeissiLetter/rss",
@@ -38,14 +54,14 @@ async function fetchFromTelegram() {
         const items = [];
 
         $(".tgme_widget_message_wrap").each((i, el) => {
-            const text = $(el).find(".tgme_widget_message_text").text();
+            const rawText = $(el).find(".tgme_widget_message_text").text();
             const date = $(el).find(".tgme_widget_message_date time").attr("datetime");
             const link = $(el).find(".tgme_widget_message_date").attr("href");
 
-            if (text && link) {
+            if (rawText && link) {
                 items.push({
                     id: link, // Uses the message URL as a unique ID
-                    content: text,
+                    content: cleanHtml(rawText),
                     link: link,
                     date: date
                 });
@@ -96,7 +112,8 @@ Postingan Twitter:
             }
         );
 
-        return response.data.choices[0].message.content.trim();
+        const result = response.data.choices[0].message.content.trim();
+        return cleanHtml(result);
     } catch (error) {
         console.error("Translation error:", error.message);
         return text;
@@ -122,9 +139,10 @@ async function fetchLatestTweets() {
                 if (response && response.data) {
                     const $ = cheerio.load(response.data, { xmlMode: true });
                     $("item").each((i, el) => {
+                        const rawContent = $(el).find("description").text() || $(el).find("title").text();
                         items.push({
                             id: $(el).find("guid").text() || $(el).find("link").text(),
-                            content: $(el).find("description").text() || $(el).find("title").text(),
+                            content: cleanHtml(rawContent),
                             link: $(el).find("link").text(),
                             date: $(el).find("pubDate").text()
                         });
