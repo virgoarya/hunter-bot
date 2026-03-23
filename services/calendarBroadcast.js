@@ -70,7 +70,10 @@ HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "
                     { role: "system", content: "Kamu adalah Senior Macro Analyst yang memberikan analisis What-IF berbasis regime untuk event ekonomi besar. Output HANYA berisi analisis, tanpa pengenalan 'Sebagai...', 'Berikut...', atau 'Analisis...'. Langsung ke inti." },
                     { role: "user", content: prompt }
                 ];
-                const rawResponse = await postToAI(messages, { temperature: 0.6, max_tokens: 800 });
+                const rawResponse = await postToAI(messages, { temperature: 0.6, max_tokens: 1000 });
+
+                // Debug: Log raw response length
+                console.log(`📦 Raw What-If response: ${rawResponse.length} chars`);
 
                 // Clean up: Remove any meta-commentary
                 whatIfScenario = rawResponse
@@ -93,8 +96,13 @@ HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "
 
     // Truncate if needed for Discord embed description limit (4096 chars)
     let scenarioDisplay = whatIfScenario;
-    if (scenarioDisplay && scenarioDisplay.length > 4000) {
-        scenarioDisplay = scenarioDisplay.substring(0, 3997) + "...";
+    if (scenarioDisplay && scenarioDisplay.length > 4090) {
+        scenarioDisplay = scenarioDisplay.substring(0, 4087) + "...";
+    }
+
+    // Debug: Log actual length to monitor truncation
+    if (scenarioDisplay && scenarioDisplay.length > 3000) {
+        console.log(`📏 What-If scenario after cleanup: ${scenarioDisplay.length} chars`);
     }
 
     const calendarEmbed = new EmbedBuilder()
@@ -129,7 +137,7 @@ HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "
             highImpact.forEach(e => {
                 const source = e.source ? `[${e.source}] ` : "";
                 const row = `${e.impactEmoji} \`${e.timeWIB}\` ${source}**${e.country}**: ${e.event} (\`${e.actual || "N/A"}\`/\`${e.forecast || "N/A"}\`/\`${e.previous || "N/A"}\`)\n`;
-                if ((dayText + row).length < 1010) dayText += row;
+                if ((dayText + row).length < 1020) dayText += row;
             });
         }
         calendarEmbed.addFields({ name: `🗓️ ${dateKey.toUpperCase()}`, value: dayText || "_Tidak ada_", inline: false });
