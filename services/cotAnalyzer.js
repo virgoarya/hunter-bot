@@ -85,23 +85,23 @@ function analyzeCOTChanges(cotData, state = null) {
             crowdingPercentile: 50, // Default
         };
 
-        // Calculate weekly change
-        if (previousSnapshot) {
-            const prevContract = previousSnapshot.contracts.find(
-                (c) => c.name === contract.name
-            );
-            if (prevContract) {
-                entry.weeklyChange =
-                    contract.speculator.net - prevContract.netSpeculator;
+        // Find previous contract from snapshot
+        const prevContract = previousSnapshot
+            ? previousSnapshot.contracts.find((c) => c.name === contract.name)
+            : null;
 
-                // Detect signal type
-                if (prevContract.netSpeculator > 0 && contract.speculator.net < 0) {
-                    entry.signal = "FLIP_TO_SHORT";
-                } else if (prevContract.netSpeculator < 0 && contract.speculator.net > 0) {
-                    entry.signal = "FLIP_TO_LONG";
-                } else if (prevContract.netSpeculator !== 0 && Math.abs(entry.weeklyChange / prevContract.netSpeculator) > 0.15) {
-                    entry.signal = entry.weeklyChange > 0 ? "ACCELERATION_LONG" : "ACCELERATION_SHORT";
-                }
+        // Calculate weekly change
+        if (prevContract) {
+            entry.weeklyChange =
+                contract.speculator.net - prevContract.netSpeculator;
+
+            // Detect signal type
+            if (prevContract.netSpeculator > 0 && contract.speculator.net < 0) {
+                entry.signal = "FLIP_TO_SHORT";
+            } else if (prevContract.netSpeculator < 0 && contract.speculator.net > 0) {
+                entry.signal = "FLIP_TO_LONG";
+            } else if (prevContract.netSpeculator !== 0 && Math.abs(entry.weeklyChange / prevContract.netSpeculator) > 0.15) {
+                entry.signal = entry.weeklyChange > 0 ? "ACCELERATION_LONG" : "ACCELERATION_SHORT";
             }
         }
 
@@ -149,8 +149,8 @@ function analyzeCOTChanges(cotData, state = null) {
         }
 
         // --- ENHANCED COT LOGIC (MOMENTUM & PRICE ACTION) ---
-        if (previousSnapshot && prevContract) {
-            // 1. Smart Money Reversal (Commercials flip position drastically)
+        // 1. Smart Money Reversal (Commercials flip position drastically)
+        if (prevContract) {
             const commercialChange = contract.commercial.net - prevContract.netCommercial;
             if (prevContract.netCommercial > 0 && contract.commercial.net < 0 && commercialChange < -10000) {
                 entry.signal = "🚨 SMART_MONEY_REVERSAL (BEARISH)";
@@ -166,7 +166,7 @@ function analyzeCOTChanges(cotData, state = null) {
             if (contract.name.includes("USD") || contract.name.includes("DOLLAR")) assetChange = parseFloat(state.DXY?.change) || 0;
             else if (contract.name.includes("GOLD")) assetChange = parseFloat(state.GOLD?.change) || 0;
             else if (contract.name.includes("NASDAQ") || contract.name.includes("S&P")) assetChange = parseFloat(state.NASDAQ?.change) || 0;
-            
+
             if (entry.signal === "EXTREME_SHORT_CROWDING" && assetChange > 0.5) {
                 entry.signal = "⚠️ POTENTIAL_SHORT_SQUEEZE";
             } else if (entry.signal === "EXTREME_LONG_CROWDING" && assetChange < -0.5) {
