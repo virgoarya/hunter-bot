@@ -36,6 +36,8 @@ async function buildCalendarBroadcast() {
     // Dapatkan macro state saat ini untuk What-If Scenario
     const state = getMacroState();
     let whatIfScenario = "Menganalisa skenario pasar...";
+    let topEvents = []; // Declare here for later use in embed building
+    let todayWib = "";
 
     if (state && state.isHealthy) {
         try {
@@ -57,7 +59,7 @@ async function buildCalendarBroadcast() {
             const divText = divergences.length > 0 ? `\nDIVERGENSI TERDETEKSI: ${divergences.join(" | ")}` : "";
 
             // Cari event paling penting HARI INI (WIB) - untuk What-If yang fokus dan relevan
-            const todayWib = new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
+            todayWib = new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
             const todayEvents = events.filter(e => {
                 if (!e.date || e.impact !== "High" || e.event.toLowerCase().includes("holiday")) return false;
                 try {
@@ -70,7 +72,7 @@ async function buildCalendarBroadcast() {
             }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by time ascending
 
             // Ambil maksimal 2 event paling penting hari ini
-            const topEvents = todayEvents.slice(0, 2);
+            topEvents = todayEvents.slice(0, 2);
 
             if (topEvents.length > 0) {
                 const eventNames = topEvents.map(e => `\`${e.event} (${e.country})\``).join(" dan ");
