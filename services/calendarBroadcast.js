@@ -47,17 +47,29 @@ async function buildCalendarBroadcast() {
                 const eventNames = topEvents.map(e => `\`${e.event} (\${e.country})\``).join(" dan ");
 
                 const prompt = `
-Kamu adalah Senior Macro Analyst.
-Konteks Pasar Saat Ini: Rezim ${regime.regime} (${regime.description}).
+Kamu adalah Senior Macro Analyst di Institutional Desk.
 
-Minggu ini ada rilis data penting: ${eventNames}.
-Tulis 1 paragraf singkat (maks 40 kata) berisi "What-If Scenario" (Skenario Jika-Maka) untuk event tersebut berdasarkan rezim saat ini.
-Contoh format: "Karena pasar fokus pada inflasi, JIKA [Event] dirilis lebih tinggi dari ekspektasi, maka [Aset X] akan anjlok dan [Aset Y] reli. Sebaliknya, JIKA lebih rendah..."`;
+KONTEKS PASAR SAAT INI:
+- Rezim: ${regime.regime} (${regime.description})
+
+EVENT YANG AKAN DIRILIS:
+${eventNames}
+
+TUGAS:
+Buatkan analisis "What-If Scenario" yang komprehensif untuk data-release tersebut. Jelaskan:
+
+1. **Skenario BEAT/MISS/IN-LINE** terhadap forecast
+2. **Dampak langsung** ke aset: DXY (USD), Gold, NASDAQ/US10Y
+3. **Reaksi Federal Reserve** (apakah memengaruhi ekspektasi rate cut/hike)
+4. **Kaitannya dengan narasi makro saat ini** (inflasi, growth, risk-on/off)
+5. **Berikan bias untuk trading intraday/swing** berdasarkan skenario
+
+Gunakan format paragraf padat, maksimal 150-200 kata. Gunakan bahasa Indonesia profesional bergaya kantor institusional.`;
 
                 whatIfScenario = await postToAI([
-                    { role: "system", content: "Berikan skenario What-If yang tajam dan langsung ke poin." },
+                    { role: "system", content: "Kamu adalah Senior Macro Analyst yang memberikan analisis What-If berbasis regime untuk event ekonomi besar. Berikan insight mendalam, bukan sekadar permukaan." },
                     { role: "user", content: prompt }
-                ], { temperature: 0.5, max_tokens: 150 });
+                ], { temperature: 0.6, max_tokens: 350 });
             } else {
                 whatIfScenario = "Tidak ada event tier-1 berdampak tinggi minggu ini.";
             }
