@@ -243,7 +243,7 @@ async function generateOutlookAnalysis(state, regime, bias, intent, session = "p
 DIVERGENSI: ${divergences.join(" | ")}` : "";
 
         const repoData = state?.RepoData;
-        const repoStr = repoData && !repoData.error ? `ON RRP: $id${repoData.amountBillion}B (${repoData.direction}, ${repoData.changePercent}%)` : "ON RRP: N/A";
+        const repoStr = repoData && !repoData.error ? `ON RRP: ${repoData.amountBillion}B (${repoData.direction}, ${repoData.changePercent}%)` : "ON RRP: N/A";
 
         // Agent 1: Rates & FX Analyst
         const ratesPrompt = `Kamu adalah Rates & FX Analyst institusional. Fokus analisis: Yield (US10Y), Dolar (DXY), Emas (GOLD).
