@@ -97,19 +97,20 @@ HARUS: Gunakan bahasa Indonesia profesional, to-the-point. JANGAN mulai dengan "
         scenarioDisplay = scenarioDisplay.substring(0, 997) + "...";
     }
 
-    // Build Calendar Embed (only events)
-    const calendarEmbed = new EmbedBuilder()
+    const embed = new EmbedBuilder()
         .setTitle("📅 KALENDER EKONOMI MINGGUAN")
         .setColor("#3498db")
         .setDescription("Peristiwa institusional utama dalam radar minggu ini.")
+        .addFields({ name: "🔮 Skenario 'What-If' (Macro Context)", value: `*${scenarioDisplay || "Tidak tersedia"}*`, inline: false })
         .setTimestamp()
         .setFooter({ text: "Semua waktu dalam WIB (UTC+7)" });
 
     const sortedDates = Object.keys(groups).sort((a, b) => new Date(groups[a][0].date) - new Date(groups[b][0].date));
 
-    // Only show first 5 days
+    // Only show first 5 days to avoid field limits or too long message
     for (const dateKey of sortedDates.slice(0, 5)) {
         const dayEvents = groups[dateKey];
+
         let dayText = "";
         const formatted = dayEvents.map(e => {
             let impactEmoji = "🟢";
