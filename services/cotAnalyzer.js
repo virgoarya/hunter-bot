@@ -148,6 +148,32 @@ function analyzeCOTChanges(cotData, state = null) {
             }
         }
 
+        // --- ENHANCED COT LOGIC (MOMENTUM & PRICE ACTION) ---
+        if (previousSnapshot && prevContract) {
+            // 1. Smart Money Reversal (Commercials flip position drastically)
+            const commercialChange = contract.commercial.net - prevContract.netCommercial;
+            if (prevContract.netCommercial > 0 && contract.commercial.net < 0 && commercialChange < -10000) {
+                entry.signal = "🚨 SMART_MONEY_REVERSAL (BEARISH)";
+            } else if (prevContract.netCommercial < 0 && contract.commercial.net > 0 && commercialChange > 10000) {
+                entry.signal = "🚨 SMART_MONEY_REVERSAL (BULLISH)";
+            }
+        }
+
+        // 2. Extreme Positioning vs Price Action (Squeeze / Liquidation)
+        if (state && state.isHealthy) {
+            // Helper to get asset change percentage based on COT name
+            let assetChange = 0;
+            if (contract.name.includes("USD") || contract.name.includes("DOLLAR")) assetChange = parseFloat(state.DXY?.change) || 0;
+            else if (contract.name.includes("GOLD")) assetChange = parseFloat(state.GOLD?.change) || 0;
+            else if (contract.name.includes("NASDAQ") || contract.name.includes("S&P")) assetChange = parseFloat(state.NASDAQ?.change) || 0;
+            
+            if (entry.signal === "EXTREME_SHORT_CROWDING" && assetChange > 0.5) {
+                entry.signal = "⚠️ POTENTIAL_SHORT_SQUEEZE";
+            } else if (entry.signal === "EXTREME_LONG_CROWDING" && assetChange < -0.5) {
+                entry.signal = "⚠️ POTENTIAL_LONG_LIQUIDATION";
+            }
+        }
+
         analysis.push(entry);
     }
 
@@ -188,8 +214,8 @@ Konteks Makro:
 
         const { postToAI } = require("../utils/aiProxy");
         const messages = [
-            { role: "system", content: "Anda adalah pakar analisis Institutional Positioning (COT). Analisis data ini dengan gaya Hedge Fund Desk. Fokus pada pergeseran Leveraged Funds vs Commercials." },
-            { role: "user", content: `Analisis data COT berikut:\n${cotSummary}\n\n${macroContext}\n\nBerikan interpretasi profesional singkat (max 3 paragraf).` }
+            { role: "system", content: "Anda adalah pakar analisis Institutional Positioning (COT) di Hedge Fund Quant. Analisis pergeseran Leveraged Funds vs Commercials (Smart Money)." },
+            { role: "user", content: `Analisis data COT berikut:\n${cotSummary}\n\n${macroContext}\n\nInstruksi:\n1. Jelaskan arah momentum posisi Institusi (Leveraged Funds).\n2. Jika ada indikasi SMART_MONEY_REVERSAL, Short Squeeze, atau Long Liquidation, jadikan itu PERINGATAN UTAMA.\n3. Berikan kesimpulan arah untuk aset berisiko dan dolar. Max 3 paragraf padat bergaya eksekutif.` }
         ];
 
         const interpretation = await postToAI(messages, {

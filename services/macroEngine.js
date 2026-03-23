@@ -54,7 +54,7 @@ async function runMacroCycle(client, silent = false) {
   if (shift) {
     if (!silent) await sendShiftAlert(client, shift, narrative);
   }
-  
+
   if (!silent) await sendSessionAlert(client, session);
 
   console.log("📊 Macro Updated");

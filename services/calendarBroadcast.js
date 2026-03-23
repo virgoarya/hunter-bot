@@ -1,6 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
 const { fetchEconomicCalendar } = require("./economicCalendar");
 const { generateCalendarInterpretation } = require("./calendarAnalyzer");
+const { getMacroState } = require("./macroData");
+const { classifyRegime } = require("./regime");
+const { postToAI } = require("../utils/aiProxy");
 
 const broadcastedReleases = new Set();
 let lastForceRefreshTime = 0;
@@ -30,10 +33,45 @@ async function buildCalendarBroadcast() {
         groups[dateKey].push(e);
     });
 
+    // Dapatkan macro state saat ini untuk What-If Scenario
+    const state = getMacroState();
+    let whatIfScenario = "Menganalisa skenario pasar...";
+
+    if (state && state.isHealthy) {
+        try {
+            const regime = classifyRegime(state);
+            // Cari event paling penting minggu ini
+            const topEvents = events.filter(e => e.impact === "High" && e.event && !e.event.toLowerCase().includes("holiday")).slice(0, 2);
+
+            if (topEvents.length > 0) {
+                const eventNames = topEvents.map(e => `\`${e.event} (\${e.country})\``).join(" dan ");
+
+                const prompt = `
+Kamu adalah Senior Macro Analyst.
+Konteks Pasar Saat Ini: Rezim \${regime.regime} (\${regime.description}).
+
+Minggu ini ada rilis data penting: \${eventNames}.
+Tulis 1 paragraf singkat (maks 40 kata) berisi "What-If Scenario" (Skenario Jika-Maka) untuk event tersebut berdasarkan rezim saat ini.
+Contoh format: "Karena pasar fokus pada inflasi, JIKA [Event] dirilis lebih tinggi dari ekspektasi, maka [Aset X] akan anjlok dan [Aset Y] reli. Sebaliknya, JIKA lebih rendah..."`;
+
+                whatIfScenario = await postToAI([
+                    { role: "system", content: "Berikan skenario What-If yang tajam dan langsung ke poin." },
+                    { role: "user", content: prompt }
+                ], { temperature: 0.5, max_tokens: 150 });
+            } else {
+                whatIfScenario = "Tidak ada event tier-1 berdampak tinggi minggu ini.";
+            }
+        } catch (e) {
+            console.error("What-If AI Error:", e.message);
+            whatIfScenario = "Skenario AI tidak tersedia saat ini.";
+        }
+    }
+
     const embed = new EmbedBuilder()
         .setTitle("📅 KALENDER EKONOMI MINGGUAN")
         .setColor("#3498db")
         .setDescription("Peristiwa institusional utama dalam radar minggu ini.")
+        .addFields({ name: "🔮 Skenario 'What-If' (Macro Context)", value: `*\${whatIfScenario}*`, inline: false })
         .setTimestamp()
         .setFooter({ text: "Semua waktu dalam WIB (UTC+7)" });
 

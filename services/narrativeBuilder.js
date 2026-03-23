@@ -46,10 +46,11 @@ function buildNarrative(regime = {}, bias = {}, intent = {}, shift = null) {
   }
 
   let baseNarrative = "Posisi pasar tetap seimbang tanpa niat institusional yang dominan.";
-  
+
   if (yesterdayRegime && yesterdayRegime !== regimeText && !shiftTo) {
       baseNarrative = `Kemarin pasar berada di fase ${yesterdayRegime}, namun hari ini telah bergeser ke ${regimeText}. Ini mengindikasikan rotasi modal sedang berlangsung.`;
   }
+
   if (regimeText.includes("Defensif")) {
     baseNarrative = "Institusi mempertahankan perlindungan sambil memonitor kondisi likuiditas.";
   }
