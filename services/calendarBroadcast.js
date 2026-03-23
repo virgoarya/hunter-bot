@@ -245,7 +245,11 @@ async function getNewReleaseAlerts() {
             .setTimestamp();
 
         if (interpretation) {
-            embed.addFields({ name: "🧠 Catatan Cepat Sektor Institusional", value: interpretation, inline: false });
+            // Truncate interpretation to safe limit (1024 max for field value)
+            const truncatedInterpretation = interpretation.length > 1000
+                ? interpretation.substring(0, 997) + "..."
+                : interpretation;
+            embed.addFields({ name: "🧠 Catatan Cepat Sektor Institusional", value: truncatedInterpretation, inline: false });
         }
 
         alerts.push({ embeds: [embed] });
