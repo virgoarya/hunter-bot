@@ -24,7 +24,13 @@ const RSS_URLS = [
     "https://nitter.net/KobeissiLetter/rss",
     "https://nitter.perennialte.ch/KobeissiLetter/rss",
     "https://nitter.poast.org/KobeissiLetter/rss",
-    "https://nitter.cz/KobeissiLetter/rss"
+    "https://nitter.cz/KobeissiLetter/rss",
+    "https://nitter.privacydev.net/KobeissiLetter/rss",
+    "https://nitter.actionsack.com/KobeissiLetter/rss",
+    "https://nitter.42l.fr/KobeissiLetter/rss",
+    "https://nitter.weiler.rocks/KobeissiLetter/rss",
+    "https://nitter.unixfox.eu/KobeissiLetter/rss",
+    "https://nitter.mastodont.cat/KobeissiLetter/rss"
 ];
 
 const TELEGRAM_URL = "https://t.me/s/TheKobeissiLetter";
@@ -83,14 +89,25 @@ function saveCache(cache) {
     }
 }
 
-async function translateTweet(text) {
+// Rate limit tracking
+let translationRateLimitUntil = 0;
+const TRANSLATION_RETRY_DELAY = 2000; // 2 seconds base delay
+
+async function translateTweet(text, retryCount = 0) {
     try {
-        const prompt = `Anda adalah asisten translasi profesional Makro Hunter. 
-Terjemahkan postingan Twitter dari @KobeissiLetter berikut ke Bahasa Indonesia yang profesional, tajam, dan memiliki nada institutional desk. 
+        // Check if we're currently rate limited
+        if (Date.now() < translationRateLimitUntil) {
+            const waitMs = translationRateLimitUntil - Date.now();
+            console.log(`⏳ Translation rate limited, waiting ${waitMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+
+        const prompt = `Anda adalah asisten translasi profesional Makro Hunter.
+Terjemahkan postingan Twitter dari @KobeissiLetter berikut ke Bahasa Indonesia yang profesional, tajam, dan memiliki nada institutional desk.
 
 ATURAN:
-1. JANGAN kurangi detail teknis atau data angka. 
-2. Hindari gaya bahasa informal. 
+1. JANGAN kurangi detail teknis atau data angka.
+2. Hindari gaya bahasa informal.
 3. Gunakan istilah keuangan global (English) jika lebih presisi dalam konteks profesional.
 4. Output HANYA hasil terjemahan.
 
@@ -103,59 +120,138 @@ Postingan Twitter:
                 model: process.env.OPENROUTER_MODEL,
                 messages: [{ role: "user", content: prompt }],
                 temperature: 0.3,
+                max_tokens: 500
             },
             {
                 headers: {
                     Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
-                }
+                },
+                timeout: 10000 // 10 second timeout
             }
         );
 
-        const result = response.data.choices[0].message.content.trim();
-        return cleanHtml(result);
+        // Check for rate limit headers
+        const remaining = response.headers['x-ratelimit-remaining'];
+        const resetTime = response.headers['x-ratelimit-reset'];
+        if (remaining && parseInt(remaining) < 5) {
+            console.warn(`⚠️ Translation API rate limit low: ${remaining} remaining`);
+        }
+        if (resetTime) {
+            const resetTimestamp = parseInt(resetTime) * 1000;
+            if (resetTimestamp > Date.now()) {
+                translationRateLimitUntil = resetTimestamp + 5000; // Add 5s buffer
+            }
+        }
+
+        const result = response.data.choices[0]?.message?.content?.trim();
+        return result ? cleanHtml(result) : text;
     } catch (error) {
         console.error("Translation error:", error.message);
+
+        // Check if it's a rate limit error (429)
+        if (error.response?.status === 429 && retryCount < 3) {
+            const retryAfter = error.response.headers['retry-after'] ?
+                parseInt(error.response.headers['retry-after']) * 1000 :
+                TRANSLATION_RETRY_DELAY * (retryCount + 1);
+
+            console.log(`⏳ Rate limited, retrying in ${retryAfter}ms (attempt ${retryCount + 1}/3)...`);
+            await new Promise(resolve => setTimeout(resolve, retryAfter));
+            return translateTweet(text, retryCount + 1);
+        }
+
+        // For other errors, return original text
         return text;
     }
+}
+
+// Batch translate multiple tweets with delay between requests to avoid rate limits
+async function translateBatch(tweets) {
+    if (!tweets || tweets.length === 0) return tweets;
+
+    console.log(`📝 Batch translating ${tweets.length} tweets...`);
+
+    const BATCH_DELAY = 1000; // 1 second between translation calls
+    const results = [];
+
+    for (let i = 0; i < tweets.length; i++) {
+        const tweet = tweets[i];
+        try {
+            const translated = await translateTweet(tweet.content);
+            tweet.translatedContent = translated;
+            results.push(tweet);
+
+            // Add delay between calls (except after last one)
+            if (i < tweets.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+            }
+        } catch (error) {
+            console.error(`Translation failed for tweet ${tweet.id}:`, error.message);
+            tweet.translatedContent = tweet.content; // Fallback to original
+            results.push(tweet);
+        }
+    }
+
+    console.log(`✅ Batch translation completed: ${results.length}/${tweets.length} successful`);
+    return results;
 }
 
 async function fetchLatestTweets() {
     try {
         console.log("🐦 Fetching feeds from @KobeissiLetter...");
-        let response = null;
         let items = [];
         let source = "nitter";
 
-        // Step 1: Try Nitter Instances
-        for (const url of RSS_URLS) {
+        // Step 1: Try Nitter Instances with staggered delays
+        for (let i = 0; i < RSS_URLS.length; i++) {
+            const url = RSS_URLS[i];
             try {
-                response = await axios.get(url, {
+                console.log(`[Twitter-Retry] Trying Nitter mirror: ${url}`);
+
+                const response = await axios.get(url, {
                     headers: {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     },
-                    timeout: 3000 // Faster timeout for mirrors
+                    timeout: 5000 // Increased timeout
                 });
+
                 if (response && response.data) {
                     const $ = cheerio.load(response.data, { xmlMode: true });
                     $("item").each((i, el) => {
                         const rawContent = $(el).find("description").text() || $(el).find("title").text();
+                        const guid = $(el).find("guid").text();
+                        const link = $(el).find("link").text();
                         items.push({
-                            id: $(el).find("guid").text() || $(el).find("link").text(),
+                            id: guid || link,
                             content: cleanHtml(rawContent),
-                            link: $(el).find("link").text(),
+                            link: link,
                             date: $(el).find("pubDate").text()
                         });
                     });
-                    if (items.length > 0) break;
+
+                    if (items.length > 0) {
+                        console.log(`✅ Fetched ${items.length} items from ${url}`);
+                        break;
+                    }
                 }
             } catch (err) {
-                console.log(`[Twitter-Retry] Mirror failing: ${url} (${err.message})`);
+                const status = err.response?.status;
+                if (status === 429) {
+                    console.warn(`[Twitter-Retry] Nitter instance rate limited (429): ${url}`);
+                } else {
+                    console.log(`[Twitter-Retry] Mirror failing: ${url} (${err.message})`);
+                }
+            }
+
+            // Add small delay before trying next mirror to avoid hammering
+            if (i < RSS_URLS.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
         // Step 2: Fallback to Telegram if Nitter failed
         if (items.length === 0) {
+            console.log("� Telegram fallback activated...");
             items = await fetchFromTelegram();
             source = "telegram";
         }
@@ -178,26 +274,29 @@ async function fetchLatestTweets() {
             return [];
         }
 
-        // Identify new items
+        // Identify new items (stop at first seen tweet)
         for (const tweet of items) {
             if (tweet.id === lastId) break;
             newTweets.push(tweet);
         }
 
-        // Update cache
-        if (newTweets.length > 0) {
-            if (source === "nitter") cache.lastNitterId = items[0].id;
-            else cache.lastTelegramId = items[0].id;
-            saveCache(cache);
-
-            // Translate new items
-            for (const tweet of newTweets) {
-                console.log(`📝 Translating ${source} update:`, tweet.id);
-                tweet.translatedContent = await translateTweet(tweet.content);
-            }
+        if (newTweets.length === 0) {
+            console.log("📭 No new tweets found.");
+            return [];
         }
 
-        return newTweets.reverse(); // Chronological order
+        console.log(`📦 Found ${newTweets.length} new tweets`);
+
+        // Update cache immediately (even if translation fails, we don't want to re-fetch these)
+        if (source === "nitter") cache.lastNitterId = items[0].id;
+        else cache.lastTelegramId = items[0].id;
+        saveCache(cache);
+
+        // Translate new items in batch (with rate limit protection)
+        const translatedTweets = await translateBatch(newTweets);
+
+        // Return in chronological order (oldest first)
+        return translatedTweets.reverse();
     } catch (error) {
         console.error("Twitter service main error:", error.message);
         return [];
