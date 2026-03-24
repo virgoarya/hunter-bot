@@ -1,12 +1,123 @@
 const { EmbedBuilder } = require("discord.js");
 const { fetchEconomicCalendar } = require("./economicCalendar");
-const { generateCalendarInterpretation } = require("./calendarAnalyzer");
 const { getMacroState } = require("./macroData");
 const { classifyRegime } = require("./regime");
 const { postToAI } = require("../utils/aiProxy");
 
 const broadcastedReleases = new Set();
 let lastForceRefreshTime = 0;
+
+// Cache untuk What-If scenarios per event (eventId => whatIfText)
+const whatIfCache = new Map();
+
+/**
+ * Generate What-If scenario untuk sebuah event high-impact
+ */
+async function generateWhatIfForEvent(event, state, regime, regimeShiftInfo = "", divergences = []) {
+    const eventId = `${event.date}_${event.country}_${event.event}`;
+
+    // Check cache first (cache for 1 hour)
+    const cached = whatIfCache.get(eventId);
+    if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
+        return cached.text;
+    }
+
+    try {
+        const marketContext = `
+DXY: ${state.DXY?.close ?? "N/A"} (${state.DXY?.change ?? "0"}%)
+US10Y: ${state.US10Y?.close ?? "N/A"}% (${state.US10Y?.change ?? "0"}%)
+NASDAQ: ${state.NASDAQ?.close ?? "N/A"} (${state.NASDAQ?.change ?? "0"}%)
+GOLD: ${state.GOLD?.close ?? "N/A"} (${state.GOLD?.change ?? "0"}%)
+VIX: ${state.VIX?.close ?? "N/A"}
+${regimeShiftInfo}
+DIVERGENSI: ${divergences.length > 0 ? divergences.join(" | ") : "Tidak terdeteksi"}`;
+
+        const prompt = `
+## WHAT-IF SCENARIO ANALYSIS
+
+EVENT: ${event.event} (${event.country})
+FORECAST: ${event.forecast ?? "N/A"}
+SEBELUMNYA: ${event.previous ?? "N/A"}
+
+KONTEKS PASAR SAAT INI:
+- Rezim: ${regime.regime} (${regime.description})
+${marketContext}
+
+## PROTOKOL ANALISIS:
+
+**1. KUALIFIKASI BEAT/MISS/IN-LINE**
+- Estimasi dampak magnitude: DXY ±X bps, Gold ±Y$, Nasdaq ±Z%
+- BEAT > forecast 0.5%: reaksi kuat
+- MISS > forecast 0.5%: reaksi sebaliknya
+- In-line: reaksi minimal
+
+**2. CHAIN CAUSE-EFFECT**
+Jelaskan alur sebab-akibat: "CPI tinggi → Fed hawkish → USD menguat"
+
+**3. KONTEKS REGIME**
+- Bagaimana regime ${regime.regime} mempengaruhi reaksi?
+- Contoh: regime INFLASI, data panas memperkuat narasi "Tighter-for-Longer"
+
+**4. DAMPAK REGIME SHIFT**${regimeShiftInfo ? '- Regime shift sedang berlangsung, interpretasi data bisa berubah.' : ''}
+
+**5. PERTIMBANGAN DIVERGENSI**${divergences.length > 0 ? `- Divergences: ${divergences.join(", ")} bisa menyebabkan squeeze/reversal.` : ''}
+
+**6. TIMEFRAME & POTENSI FADE**
+- Intraday (2-4 jam): Reaksi algo, mungkin fade jika priced-in
+- Short-term (1-3 Hari): Gerakan berkelanjutan jika ubah narasi Fed
+- Structural (>1 minggu): Langka, butuh regime change
+- Risiko fade: deviasi <0.3% → likely sudah priced
+
+**7. CONFIDENCE & TRIGGER**
+- Confidence: High (>75%) / Medium (50-75%) / Low (<50%)
+- Key trigger: "Jika [condition], maka [reaksi]"
+- Invalidation: "Jika [condition sebaliknya], thesis wrong"
+
+## OUTPUT FORMAT (BAHASA INDONESIA):
+
+**WHAT-IF: [Nama Event]**
+
+Beat/Miss: [lebih tinggi/lebih rendah/sesuai] forecast dengan deviasi [X]%
+Dampak Instan:
+- DXY: ±X bps
+- Gold: ±Y$
+- Nasdaq: ±Z%
+Mechanism: [Jelaskan cause-effect dalam 1-2 kalimat]
+Regime Filter: [Bagaimana regime ${regime.regime} memodifikasi reaksi?]
+Timeframe: [intraday / short-term / structural]
+Confidence: [High/Med/Low] - [alasan]
+Key Trigger: "[Kondisi spesifik]"
+Invalidation: "[Kondisi sebaliknya]"
+
+CATATAN: Output HANYA analisis, tanpa pengenalan. Gunakan Indonesia 100%.
+`;
+
+        const messages = [
+            { role: "system", content: "Kamu adalah Senior Macro Analyst. Berikan what-if scenario analisis dalam Bahasa Indonesia." },
+            { role: "user", content: prompt }
+        ];
+
+        const rawResponse = await postToAI(messages, { temperature: 0.5, max_tokens: 500 });
+
+        // Clean up
+        let analysis = rawResponse
+            .replace(/^(Sebagai|Saya|Analisis|Berikut)[^\n]*\n*/i, '')
+            .trim();
+
+        if (!analysis || analysis.length < 30) {
+            analysis = rawResponse.trim();
+        }
+
+        // Cache result
+        whatIfCache.set(eventId, { text: analysis, timestamp: Date.now() });
+
+        return analysis;
+
+    } catch (e) {
+        console.error("What-If generation error:", e.message);
+        return "Analisis what-if tidak tersedia saat ini.";
+    }
+}
 
 async function buildCalendarBroadcast() {
     const events = await fetchEconomicCalendar();
@@ -32,210 +143,6 @@ async function buildCalendarBroadcast() {
         if (!groups[dateKey]) groups[dateKey] = [];
         groups[dateKey].push(e);
     });
-
-    // Dapatkan macro state saat ini untuk What-If Scenario
-    const state = getMacroState();
-    let whatIfScenario = "Menganalisa skenario pasar...";
-    let topEvents = []; // Declare here for later use in embed building
-    let todayWib = "";
-
-    if (state && state.isHealthy) {
-        try {
-            const regime = classifyRegime(state);
-
-            // Detect regime shift if available
-            let regimeShiftInfo = "";
-            try {
-                const { getHistoricalRegime } = require("./regimeTracker");
-                const prevRegime = getHistoricalRegime(1);
-                if (prevRegime && prevRegime !== regime.regime) {
-                    regimeShiftInfo = `\nREGIME SHIFT: ${prevRegime} → ${regime.regime} (Market interpreting through new regime lens)`;
-                }
-            } catch (e) {}
-
-            // Get correlation patterns
-            const { detectDivergences } = require("./correlationEngine");
-            const divergences = detectDivergences(state);
-            const divText = divergences.length > 0 ? `\nDIVERGENSI TERDETEKSI: ${divergences.join(" | ")}` : "";
-
-            // Cari event paling penting HARI INI (WIB) - untuk What-If yang fokus dan relevan
-            todayWib = new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
-            const todayEvents = events.filter(e => {
-                if (!e.date || e.impact !== "High" || e.event.toLowerCase().includes("holiday")) return false;
-                try {
-                    const eventDate = new Date(e.date);
-                    const eventDateWib = eventDate.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
-                    return eventDateWib === todayWib;
-                } catch {
-                    return false;
-                }
-            }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by time ascending
-
-            // Ambil maksimal 2 event paling penting hari ini
-            topEvents = todayEvents.slice(0, 2);
-
-            if (topEvents.length > 0) {
-                const eventNames = topEvents.map(e => `\`${e.event} (${e.country})\``).join(" dan ");
-                const eventList = topEvents.map(e => `- ${e.event} (${e.country})`).join("\n");
-
-                // Extract key market levels for context
-                const marketContext = `
-DXY: ${state.DXY?.close ?? "N/A"} (${state.DXY?.change ?? "0"}%)
-US10Y: ${state.US10Y?.close ?? "N/A"}% (${state.US10Y?.change ?? "0"}%)
-NASDAQ: ${state.NASDAQ?.close ?? "N/A"} (${state.NASDAQ?.change ?? "0"}%)
-GOLD: ${state.GOLD?.close ?? "N/A"} (${state.GOLD?.change ?? "0"}%)
-VIX: ${state.VIX?.close ?? "N/A"}
-${regimeShiftInfo}${divText}`;
-
-                const prompt = `
-## WHAT-IF SCENARIO ANALYSIS - HARI INI (${todayWib})
-
-EVENT YANG AKAN DIRILIS HARI INI:
-${eventList}
-
-KONTEKS PASAR SAAT INI:
-- Rezim: ${regime.regime} (${regime.description})
-${marketContext}
-
-## PROTOKOL ANALISIS:
-
-**1. KUALIFIKASI BEAT/MISS/IN-LINE**
-Untuk SETIAP event:
--Estimasi magnitudo dampak (berdasarkan avg dampak historis): DXY ±X bps, Gold ±Y$, dll.
-- Jika BEAT > forecast dengan >0.5% untuk CPI/NFP, expect reaksi langsung.
-- Jika MISS > forecast dengan >0.5%, reaksi sebaliknya.
-- Jika in-line, reaksi minimal (sering fade).
-
-**2. CHAIN CAUSE-EFFECT (WAJIB JELASKAN)**
-Jangan hanya bilang "DXY menguat". Jelaskan MENGAPA:
-Contoh: "Higher CPI → Ekspektasi Fed hawkish ↑ → Permintaan USD ↑ → DXY +0.5% dalam 1 jam"
-
-**3. KONTEKS REGIME**
-- Bagaimana regime saat ini (${regime.regime}) mempengaruhi reaksi?
-- Contoh: Dalam regime RISK-OFF, data positif pun bisa dianggap "buruk" (karena manterkan Fed hawkish → hurts equities).
-- Contoh: Dalam regime INFLASI, data panas apapun menguatkan narasi "Tighter-for-Longer".
-
-**4. DAMPAK REGIME SHIFT**${regimeShiftInfo ? '- Pasar sedang transisi regimes, interpretasi data berubah. Jelaskan lensa OLD vs NEW.' : ''}
-
-**5. PERTIMBANGAN DIVERGENSI**${divText ? '- Smart money mungkin sudah position. Divergensi menandakan potensi squeeze/reversal.' : ''}
-
-**6. TIMEFRAME & POTENSI FADE**
-- Intraday (2-4 jam): Reaksi algo awal, mungkin fade jika data sudah priced-in.
-- Short-term (1-3 hari): Gerakan berkelanjutan jika data ubah narasi Fed/inflasi.
-- Structural (>1 minggu): Langka, butuh regime change atau policy shift.
-- Risiko fade: Jika deviasi kecil (<0.3%) → likely sudah priced.
-
-**7. CONFIDENCE & TRIGGER**
-- Confidence: High (>75%) / Medium (50-75%) / Low (<50%)
-- Key trigger level: "Jika CPI > 3.5%, DXY +0.8% dalam 2 jam"
-- Invalidation: "Jika Core CPI < 3.0%, thesis wrong"
-
-## OUTPUT FORMAT:
-
-**WHAT-IF SCENARIO ANALYSIS**
-
-[Nama Event 1]:
-BEAT/MISS: [ ] dengan deviasi [X]%
-Dampak instan: DXY ±X bps, Gold ±Y$, Nasdaq ±Z$
-Mechanism: (Jelaskan cause-effect chain dalam 1-2 kalimat)
-Regime filter: (Bagaimana regime ${regime.regime} memodifikasi reaksi?)
-Timeframe: [intraday / short-term / structural]
-Confidence: [High/Med/Low] - alasan singkat
-Key trigger: "[Condition spesifik]"
-Invalidation: "[Condition sebaliknya]"
-
-[Nama Event 2]: (struktur sama)
-[...]
-
-**CONSOLIDATED BIAS MINGGU INI:**
-Berdasarkan dampak gabungan event:
-- Risk-On / Risk-Off / Neutral
-- DXY bias: [Long/Short/Neutral]
-- Gold bias: [Long/Short/Neutral]
-- Catatan reversal/fade conditions yang diharapkan.
-
-## ATURAN:
-- Gunakan angka spesifik dari konteks (DXY 104.5, bukan "DXY saat ini").
-- Jangan Meredith data yang diberikan.
-- Jangan mulai dengan "Sebagai Senior Macro Analyst..." - langsung ke analisis.
-- Output harus lengkap namun padat, including semua key elements.
-
-CATATAN PENTING: Seluruh analisis harus dalam BAHASA INDONESIA. Hindari kata-kata bahasa Inggris seperti "beat", "miss", "fade", "trigger". Gunakan terjemahan Indonesia yang tepat.
-
-CONTOH TERJEMAHAN:
-- BEAT → "lebih tinggi dari forecast" / "kebelokan"
-- MISS → "lebih rendah dari forecast" / "lembek"
-- IN-LINE → "sesuai forecast" / "inline"
-- FADE → "lemah" / "tidak bertahan"
-- TRIGGER → "pemicu" / "level kunci"
-- LONG → "long" / "beli"
-- SHORT → "short" / "jual"
-
-Output your entire analysis in Indonesian. Do NOT use English sentences.
-`;
-
-                const systemContent = `Kamu adalah Senior Macro Analyst di Institutional Desk yang memberikan analisis What-If scenario dengan critical thinking framework.
-
-**BAHASA: OUTPUT HARUS 100% BAHASA INDONESIA**
-- JANGAN gunakan kalimat bahasa Inggris.
-- Istilah teknis (DXY, US10Y, Gold, Nasdaq) boleh di-spell, tapi penjelasan harus Indonesia.
-- Contoh: "DXY akan menguat 0.5%" (BENAR), bukan "DXY will strengthen 0.5%" (SALAH).
-
-**PRINSIP ANALISIS:**
-1. KUANTITATIF: Berikan perkiraan dampak numerik (DXY ±X bps, Gold ±Y$, Nasdaq ±Z%).
-2. MEKANISME: Jelaskan alur sebab-akibat (WHY reaksi terjadi).
-3. REGIME-AWARE: Interpretasi Bergantung pada rezim pasar saat ini.
-4. UNCERTAINTY: Berikan Confidence rating (High/Med/Low) + kondisi invalidasi.
-5. PRECISI: Gunakan data spesifik dari konteks, jangan approximate.
-
-Output HANYA berisi analisis sesuai format di atas. Tidak pengenalan/sambutan. Langsung ke "ANALISIS WHAT-IF SCENARIO".
-
-**CONTOH OUTPUT BAHAWA:**
-Hal ini termasuk DXY +0.8% karena data CPI lebih tinggi dari forecast, meningkatkan ekspektasi Fed hawkish. Dalam regime INFLASI, ini плохой untuk equities. Confidence: High (80%).
-`;
-
-                const messages = [
-                    { role: "system", content: systemContent },
-                    { role: "user", content: prompt }
-                ];
-                const rawResponse = await postToAI(messages, { temperature: 0.5, max_tokens: 800 });
-
-                console.log(`📦 Raw What-If response: ${rawResponse.length} chars`);
-
-                // Clean up
-                whatIfScenario = rawResponse
-                    .replace(/^(Sebagai Senior Macro Analyst|Saya adalah|Analisis What-IF|Berikut analisis|Konteks|EVENT|TUGAS)[^\n]*\n*/i, '')
-                    .replace(/^Analysis|Scenario:?\s*/i, '')
-                    .trim();
-
-                if (!whatIfScenario || whatIfScenario.length < 30) {
-                    whatIfScenario = rawResponse.trim();
-                }
-            } else {
-                // Check if there are high-impact events in the next 3 days but none today
-                const upcomingHighImpact = events.filter(e => e.impact === "High" && e.event && !e.event.toLowerCase().includes("holiday"));
-                if (upcomingHighImpact.length > 0) {
-                    whatIfScenario = "Hari ini tidak ada event high-impact yang dijadwalkan rilis. What-If scenario akan diaktifkan kembali ketika ada event penting hari ini.";
-                } else {
-                    whatIfScenario = "Tidak ada event high-impact dalam 3 hari ke depan. Monitor kalender untuk update.";
-                }
-            }
-        } catch (e) {
-            console.error("What-If AI Error:", e.message);
-            whatIfScenario = "Skenario AI tidak tersedia saat ini.";
-        }
-    }
-
-    // Truncate if needed for Discord embed description limit (4096 chars)
-    // With max_tokens 800, expected length ~3000-3800 chars, safe guard at 3800
-    let scenarioDisplay = whatIfScenario;
-    const originalLength = scenarioDisplay?.length || 0;
-    if (scenarioDisplay && scenarioDisplay.length > 3800) {
-        scenarioDisplay = scenarioDisplay.substring(0, 3797) + "...";
-        console.log(`⚠️ What-If scenario truncated from ${originalLength} to ${scenarioDisplay.length} chars`);
-    } else if (scenarioDisplay && scenarioDisplay.length > 3000) {
-        console.log(`📏 What-If scenario length: ${scenarioDisplay.length} chars`);
-    }
 
     const calendarEmbed = new EmbedBuilder()
         .setTitle("📅 KALENDER EKONOMI MINGGUAN")
@@ -275,36 +182,7 @@ Hal ini termasuk DXY +0.8% karena data CPI lebih tinggi dari forecast, meningkat
         calendarEmbed.addFields({ name: `🗓️ ${dateKey.toUpperCase()}`, value: dayText || "_Tidak ada_", inline: false });
     }
 
-    // Build separate embeds for each event's What-If Scenario
-    const scenarioEmbeds = [];
-    if (scenarioDisplay && scenarioDisplay !== "Menganalisa skenario pasar...") {
-        // Split by event sections: [Event 1]:, [Event 2]: etc.
-        const sections = scenarioDisplay.split(/(?=\[Event \d+:\])/).filter(s => s.trim());
-
-        sections.forEach((section, idx) => {
-            if (idx >= topEvents.length) return;
-            const event = topEvents[idx];
-            const embed = new EmbedBuilder()
-                .setTitle(`🔮 What-If: ${event.event} (${event.country})`)
-                .setColor("#9b59b6")
-                .setDescription(`**${section.trim()}**`)
-                .setTimestamp()
-                .setFooter({ text: `Hunter Bot • ${todayWib}` });
-            scenarioEmbeds.push(embed);
-        });
-
-        // If splitting failed (no sections), fallback to single embed
-        if (sections.length === 0 || scenarioEmbeds.length === 0) {
-            scenarioEmbeds.push(new EmbedBuilder()
-                .setTitle("🔮 What-If Scenario Analysis")
-                .setColor("#9b59b6")
-                .setDescription(`*${scenarioDisplay}*`)
-                .setTimestamp()
-                .setFooter({ text: `Hunter Bot • ${todayWib}` }));
-        }
-    }
-
-    return { embeds: [calendarEmbed, ...scenarioEmbeds] };
+    return { embeds: [calendarEmbed] };
 }
 
 async function getHighImpactAlerts() {
@@ -314,7 +192,7 @@ async function getHighImpactAlerts() {
     const now = Date.now();
     const thirtyMinMs = 30 * 60 * 1000;
 
-    return events.filter((e) => {
+    const highImpactEvents = events.filter((e) => {
         if (e.type !== "event" || !e.date) return false;
         const isHigh = e.impact === "High";
         if (!isHigh) return false;
@@ -325,6 +203,85 @@ async function getHighImpactAlerts() {
             return timeDiff > 0 && timeDiff <= thirtyMinMs;
         } catch { return false; }
     });
+
+    // Generate alerts with What-If analysis
+    const alerts = [];
+
+    // Get macro state for What-If context (once for all events)
+    let state = null;
+    let regime = null;
+    let regimeShiftInfo = "";
+    let divergences = [];
+
+    try {
+        state = getMacroState();
+        if (state && state.isHealthy) {
+            regime = classifyRegime(state);
+            try {
+                const { getHistoricalRegime } = require("./regimeTracker");
+                const prevRegime = getHistoricalRegime(1);
+                if (prevRegime && prevRegime !== regime.regime) {
+                    regimeShiftInfo = `\nREGIME SHIFT: ${prevRegime} → ${regime.regime}`;
+                }
+            } catch (e) {}
+            try {
+                const { detectDivergences } = require("./correlationEngine");
+                divergences = detectDivergences(state);
+            } catch (e) {}
+        }
+    } catch (e) {
+        console.error("Macro state error for What-If:", e.message);
+    }
+
+    for (const e of highImpactEvents) {
+        const eventId = `${e.date}_${e.country}_${e.event}`;
+
+        // Skip if already broadcasted
+        if (broadcastedReleases.has(eventId)) continue;
+
+        // Mark as broadcasted
+        broadcastedReleases.add(eventId);
+        if (broadcastedReleases.size > 100) {
+            const iterator = broadcastedReleases.values();
+            broadcastedReleases.delete(iterator.next().value);
+        }
+
+        // Generate What-If analysis for this event
+        let whatIfText = "";
+        if (state && state.isHealthy && regime) {
+            whatIfText = await generateWhatIfForEvent(e, state, regime, regimeShiftInfo, divergences);
+        }
+
+        // Build embed
+        const embed = new EmbedBuilder()
+            .setTitle(`⚠️ PERINGATAN: ${e.country} - ${e.event}`)
+            .setColor("#e74c3c")
+            .setTimestamp()
+            .setFooter({ text: "Rilis dalam ≤30 menit | What-If Scenario" });
+
+        // Main event data
+        embed.addFields(
+            { name: "📊 Data", value: `**${e.country}**: ${e.event}`, inline: false },
+            { name: "⏰ Waktu Rilis", value: new Date(e.date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) + " WIB", inline: true },
+            { name: "📈 Dampak", value: e.impact, inline: true },
+            { name: "🎯 Forecast", value: e.forecast || "N/A", inline: true },
+            { name: "📊 Sebelumnya", value: e.previous || "N/A", inline: true },
+            { name: "✅ Aktual", value: "⌛ Menunggu rilis...", inline: true }
+        );
+
+        // Add What-If analysis if available
+        if (whatIfText) {
+            // Truncate if too long for field (1024 max)
+            const truncatedWhatIf = whatIfText.length > 1000
+                ? whatIfText.substring(0, 997) + "..."
+                : whatIfText;
+            embed.addFields({ name: "🔮 What-If Scenario Analysis", value: truncatedWhatIf, inline: false });
+        }
+
+        alerts.push({ embeds: [embed] });
+    }
+
+    return alerts;
 }
 
 async function getNewReleaseAlerts() {
