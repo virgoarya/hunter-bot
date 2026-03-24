@@ -1,3 +1,6 @@
+// Set timezone to WIB (UTC+7) for the entire application
+process.env.TZ = 'Asia/Jakarta';
+
 require("dotenv").config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, Events } = require("discord.js");
 

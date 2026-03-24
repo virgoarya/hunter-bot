@@ -2,16 +2,19 @@ const cron = require("node-cron");
 
 /**
  * Unified broadcast scheduler using node-cron
- * All times are in UTC (WIB = UTC+7)
+ * All times are in WIB (Waktu Indonesia Barat, UTC+7)
  *
- * Schedule (WIB / Local Time):
+ * Schedule (WIB):
  * - Morning Outlook:  09:30 WIB — Mon-Fri
- * - Calendar Daily:   09:30 WIB — Mon-Fri
+ * - Calendar Daily:   09:31 WIB — Mon-Fri
  * - London Session:   12:00 WIB — Mon-Fri
  * - NY Session:       18:00 WIB — Mon-Fri
  * - Macro Update:     Every 6 hours
  * - COT Weekly:       21:00 WIB — Sunday
  * - Event Alert:      Every 15 minutes
+ * - Release Alert:    Every 5 minutes
+ * - Twitter Updates:  Every 10 minutes
+ * - Reuters Updates:  Every 30 minutes
  */
 
 function startAllSchedulers(callbacks) {
@@ -26,11 +29,11 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Morning Outlook error:", err.message);
             }
-        });
-        console.log("  ✅ Morning Outlook: 09:00 WIB (Mon-Fri)");
+        }, { timezone: 'Asia/Jakarta' });
+        console.log("  ✅ Morning Outlook: 09:30 WIB (Mon-Fri)");
     }
 
-    // === CALENDAR DAILY (09:30 WIB Mon-Fri) ===
+    // === CALENDAR DAILY (09:31 WIB Mon-Fri) ===
     if (callbacks.calendarDaily) {
         // Offset by 1 minute to avoid race conditions
         cron.schedule("31 9 * * 1-5", async () => {
@@ -40,8 +43,8 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Calendar Broadcast error:", err.message);
             }
-        });
-        console.log("  ✅ Calendar Daily: 09:00 WIB (Mon-Fri)");
+        }, { timezone: 'Asia/Jakarta' });
+        console.log("  ✅ Calendar Daily: 09:31 WIB (Mon-Fri)");
     }
 
     // === LONDON SESSION (12:00 WIB Mon-Fri) ===
@@ -53,7 +56,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ London Session error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ London Session: 12:00 WIB (Mon-Fri)");
     }
 
@@ -66,7 +69,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ NY Session error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ NY Session: 18:00 WIB (Mon-Fri)");
     }
 
@@ -79,7 +82,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Macro Update error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ Macro Update: Every 6 hours");
     }
 
@@ -92,7 +95,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ COT Weekly error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ COT Weekly: 21:00 WIB (Sunday)");
     }
 
@@ -104,7 +107,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Event Alert error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ Event Alert Check: Every 15 minutes");
     }
 
@@ -116,7 +119,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Release Alert error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ AI Release Analyzer: Every 5 minutes");
     }
 
@@ -128,7 +131,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Twitter Feeds error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ Twitter Feeds (@KobeissiLetter): Every 10 minutes");
     }
 
@@ -140,7 +143,7 @@ function startAllSchedulers(callbacks) {
             } catch (err) {
                 console.error("❌ Reuters Finance error:", err.message);
             }
-        });
+        }, { timezone: 'Asia/Jakarta' });
         console.log("  ✅ Reuters Finance: Every 30 minutes");
     }
 
