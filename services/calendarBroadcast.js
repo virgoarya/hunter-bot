@@ -14,7 +14,13 @@ const whatIfCache = new Map();
  * Generate What-If scenario untuk sebuah event high-impact
  */
 async function generateWhatIfForEvent(event, state, regime, regimeShiftInfo = "", divergences = []) {
-    const eventId = `${event.date}_${event.country}_${event.event}`;
+    // Defensive field access with fallbacks
+    const country = event.country || "Global";
+    const eventName = event.event || "Unknown Event";
+    const forecast = event.forecast || "N/A";
+    const previous = event.previous || "N/A";
+
+    const eventId = `${event.date}_${country}_${eventName}`;
 
     // Check cache first (cache for 1 hour)
     const cached = whatIfCache.get(eventId);
@@ -35,9 +41,9 @@ DIVERGENSI: ${divergences.length > 0 ? divergences.join(" | ") : "Tidak terdetek
         const prompt = `
 ## WHAT-IF SCENARIO ANALYSIS
 
-EVENT: ${event.event} (${event.country})
-FORECAST: ${event.forecast ?? "N/A"}
-SEBELUMNYA: ${event.previous ?? "N/A"}
+EVENT: ${eventName} (${country})
+FORECAST: ${forecast}
+SEBELUMNYA: ${previous}
 
 KONTEKS PASAR SAAT INI:
 - Rezim: ${regime.regime} (${regime.description})
@@ -234,7 +240,10 @@ async function getHighImpactAlerts() {
     }
 
     for (const e of highImpactEvents) {
-        const eventId = `${e.date}_${e.country}_${e.event}`;
+        // Defensive: ensure required fields exist with fallbacks
+        const country = e.country || "Global";
+        const eventName = e.event || "Tidak ada nama event";
+        const eventId = `${e.date}_${country}_${eventName}`;
 
         // Skip if already broadcasted
         if (broadcastedReleases.has(eventId)) continue;
@@ -252,20 +261,34 @@ async function getHighImpactAlerts() {
             whatIfText = await generateWhatIfForEvent(e, state, regime, regimeShiftInfo, divergences);
         }
 
+        // Safe date formatting
+        let timeWIB = "N/A";
+        try {
+            if (e.date) {
+                timeWIB = new Date(e.date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) + " WIB";
+            }
+        } catch (err) {
+            console.warn(`Invalid date format for event ${eventName}:`, e.date);
+        }
+
         // Build embed
         const embed = new EmbedBuilder()
-            .setTitle(`⚠️ PERINGATAN: ${e.country} - ${e.event}`)
+            .setTitle(`⚠️ PERINGATAN: ${country} - ${eventName}`)
             .setColor("#e74c3c")
             .setTimestamp()
             .setFooter({ text: "Rilis dalam ≤30 menit | What-If Scenario" });
 
-        // Main event data
+        // Main event data (with safe fallbacks)
+        const forecast = e.forecast || "N/A";
+        const previous = e.previous || "N/A";
+        const impact = e.impact || "High";
+
         embed.addFields(
-            { name: "📊 Data", value: `**${e.country}**: ${e.event}`, inline: false },
-            { name: "⏰ Waktu Rilis", value: new Date(e.date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) + " WIB", inline: true },
-            { name: "📈 Dampak", value: e.impact, inline: true },
-            { name: "🎯 Forecast", value: e.forecast || "N/A", inline: true },
-            { name: "📊 Sebelumnya", value: e.previous || "N/A", inline: true },
+            { name: "📊 Data", value: `**${country}**: ${eventName}`, inline: false },
+            { name: "⏰ Waktu Rilis", value: timeWIB, inline: true },
+            { name: "📈 Dampak", value: impact, inline: true },
+            { name: "🎯 Forecast", value: forecast, inline: true },
+            { name: "📊 Sebelumnya", value: previous, inline: true },
             { name: "✅ Aktual", value: "⌛ Menunggu rilis...", inline: true }
         );
 
