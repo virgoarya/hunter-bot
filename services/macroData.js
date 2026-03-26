@@ -78,39 +78,96 @@ function getMacroState() {
   return macroState;
 }
 
-async function fetchFREDSeries(seriesId, alias) {
-  try {
-    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${process.env.FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+async function fetchFREDSeries(seriesId, alias, retries = 2) {
+  const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${process.env.FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
 
-    const response = await axios.get(url, { timeout: 10000 });
-    const obs = response.data.observations;
+  let lastError;
 
-    if (!obs || obs.length === 0) return null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+        console.log(`🔄 Retrying FRED ${alias} (attempt ${attempt + 1}/${retries + 1}) after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.log(`📊 Fetching FRED ${alias} (${seriesId})...`);
+      }
 
-    const value = obs[0].value;
-    if (!value || value === "." || isNaN(parseFloat(value))) {
+      const response = await axios.get(url, {
+        timeout: 10000,
+        // Add headers to avoid potential blocking
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      });
+
+      // Check for FRED API errors (status 500, 429, etc)
+      if (response.status >= 500) {
+        throw new Error(`FRED API server error: HTTP ${response.status}`);
+      }
+
+      const obs = response.data?.observations;
+
+      if (!obs || obs.length === 0) {
+        console.warn(`⚠️ FRED ${alias}: No observations returned`);
+        return null;
+      }
+
+      const value = obs[0].value;
+      if (!value || value === "." || isNaN(parseFloat(value))) {
+        console.warn(`⚠️ FRED ${alias}: Invalid value`);
+        return null;
+      }
+
+      const current = parseFloat(value);
+      let change = "0.000";
+
+      if (obs.length > 1) {
+        const prev = parseFloat(obs[1].value);
+        if (!isNaN(prev)) {
+          change = (current - prev).toFixed(3);
+        }
+      }
+
+      console.log(`✅ FRED ${alias}: ${current} (change: ${change})`);
+      return {
+        symbol: alias,
+        close: current,
+        change: change
+      };
+
+    } catch (error) {
+      lastError = error;
+
+      const status = error.response?.status;
+
+      // Retry on 5xx errors and network issues
+      const shouldRetry = (
+        status >= 500 ||
+        status === 429 ||
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ENOTFOUND' ||
+        !error.response
+      );
+
+      if (shouldRetry && attempt < retries) {
+        continue;
+      }
+
+      // Log detailed error on final failure
+      console.error(`❌ FRED ${alias} failed after ${retries + 1} attempts:`);
+      console.error(`   Error: ${error.message}`);
+      if (error.response) {
+        console.error(`   Status: ${error.response.status}`);
+        console.error(`   Data: ${JSON.stringify(error.response.data).substring(0, 200)}`);
+      }
       return null;
     }
-
-    const current = parseFloat(value);
-    let change = "0.000";
-
-    if (obs.length > 1) {
-      const prev = parseFloat(obs[1].value);
-      if (!isNaN(prev)) {
-        change = (current - prev).toFixed(3);
-      }
-    }
-
-    return {
-      symbol: alias,
-      close: current,
-      change: change
-    };
-  } catch (error) {
-    console.error(`FRED ${alias} error:`, error.message);
-    return null;
   }
+
+  console.error(`❌ FRED ${alias} failed completely:`, lastError?.message);
+  return null;
 }
 
 module.exports = {
