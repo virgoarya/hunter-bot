@@ -108,6 +108,11 @@ async function translateTweet(text, retryCount = 0) {
             await new Promise(resolve => setTimeout(resolve, waitMs));
         }
 
+        // Additional global delay to be extra safe with rate limits
+        if (retryCount === 0) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2s global delay before each new translation
+        }
+
         const prompt = `Anda adalah asisten translasi profesional Makro Hunter.
 Terjemahkan postingan Twitter dari @KobeissiLetter berikut ke Bahasa Indonesia yang profesional, tajam, dan memiliki nada institutional desk.
 
@@ -177,7 +182,7 @@ async function translateBatch(tweets) {
 
     console.log(`📝 Batch translating ${tweets.length} tweets...`);
 
-    const BATCH_DELAY = 1000; // 1 second between translation calls
+    const BATCH_DELAY = 3000; // Increased to 3 seconds between translation calls to avoid rate limits
     const results = [];
 
     for (let i = 0; i < tweets.length; i++) {
@@ -327,9 +332,12 @@ async function fetchLatestTweets() {
         }
 
         // Identify new items (stop at first seen tweet)
+        // LIMIT to max 5 tweets to avoid excessive translation rate limits
+        const MAX_TWEETS = 5;
         for (const tweet of items) {
             if (tweet.id === lastId) break;
             newTweets.push(tweet);
+            if (newTweets.length >= MAX_TWEETS) break;
         }
 
         if (newTweets.length === 0) {
@@ -337,17 +345,23 @@ async function fetchLatestTweets() {
             return [];
         }
 
-        console.log(`📦 Found ${newTweets.length} new tweets from ${source}`);
+        console.log(`📦 Found ${newTweets.length} new tweets from ${source} (limited to ${MAX_TWEETS})`);
 
         // Update cache immediately (prevent re-fetching on next run)
         cache[cacheKey] = items[0].id;
         saveCache(cache);
 
-        // Translate new items in batch (with rate limit protection)
-        const translatedTweets = await translateBatch(newTweets);
+        // NOTE: Translation disabled to avoid rate limits.
+        // AI models (OpenRouter/Gemini) can understand English content directly.
+        // The macro analyzer uses English source content in its prompts.
+        // If translation is needed in the future, re-enable translateBatch().
+        const processedTweets = newTweets.map(t => ({
+            ...t,
+            translatedContent: t.content // Use original English content
+        }));
 
         // Return in chronological order (oldest first)
-        return translatedTweets.reverse();
+        return processedTweets.reverse();
     } catch (error) {
         console.error("❌ Twitter service main error:", error.message);
         if (error.response) {

@@ -135,21 +135,21 @@ function startAllSchedulers(callbacks) {
         console.log("  ✅ Twitter Feeds (@KobeissiLetter): Every 10 minutes");
     }
 
-    // === REUTERS FINANCE (Every 30 minutes) ===
+    // === REUTERS FINANCE (Every 2 hours) ===
     if (callbacks.reutersUpdates) {
-        cron.schedule("*/30 * * * *", async () => {
+        cron.schedule("0 */2 * * *", async () => {
             try {
                 await callbacks.reutersUpdates();
             } catch (err) {
                 console.error("❌ Reuters Finance error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Reuters Finance: Every 30 minutes");
+        console.log("  ✅ Reuters Finance: Every 2 hours");
     }
 
-    // === MACRO NEWS ANALYSIS (Critical Thinking) - Every 15 minutes ===
+    // === MACRO NEWS ANALYSIS (Critical Thinking) - Every 2 hours ===
     if (callbacks.macroNewsAnalysis) {
-        cron.schedule("*/15 * * * *", async () => {
+        cron.schedule("0 */2 * * *", async () => {
             try {
                 console.log("🧠 Triggering Macro News Analysis (Critical Thinking)...");
                 await callbacks.macroNewsAnalysis();
@@ -157,7 +157,7 @@ function startAllSchedulers(callbacks) {
                 console.error("❌ Macro News Analysis error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Macro News Analysis (Critical Thinking): Every 15 minutes");
+        console.log("  ✅ Macro News Analysis (Critical Thinking): Every 2 hours");
     }
 
     console.log("\n⏱️ All schedulers active!\n");

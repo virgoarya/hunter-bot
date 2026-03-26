@@ -243,8 +243,8 @@ async function fetchAndAnalyzeMacroNews() {
       console.warn("⚠️ Reuters fetch failed in macro analyzer:", err.message);
     }
 
-    // Combine and limit to top 3 total (most recent/relevant)
-    const allNews = [...twitterNews, ...reutersNews].slice(0, 3);
+    // Combine and limit to top 1 total (to avoid rate limits)
+    const allNews = [...twitterNews, ...reutersNews].slice(0, 1);
 
     if (allNews.length === 0) {
       console.log("ℹ️ No breaking macro news found after filtering.");
