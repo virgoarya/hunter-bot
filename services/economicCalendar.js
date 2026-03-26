@@ -228,12 +228,7 @@ async function fetchEconomicCalendar(forceRefresh = false) {
 async function _fetchEconomicCalendarInternal(forceRefresh = false) {
   const now = Date.now();
 
-  const FE_COOLDOWN_MS = 2 * 60 * 1000;
-  if (forceRefresh && now - calendarCache.updatedAt < FE_COOLDOWN_MS && calendarCache.data.length > 0) {
-    console.warn(`⏳ FairEconomy Cooldown Active. Bypass forceRefresh ditahan selama sisa ${(FE_COOLDOWN_MS - (now - calendarCache.updatedAt)) / 1000} detik.`);
-    return calendarCache.data;
-  }
-
+  // General cache TTL (15 min) - soft cache for normal requests
   if (!forceRefresh && now - calendarCache.updatedAt < CACHE_MS && calendarCache.data.length > 0) {
     return calendarCache.data;
   }
@@ -241,46 +236,47 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
   try {
     const majorCountries = ["USD", "GBP", "EUR", "JPY", "CHF", "CAD"];
 
-    // 1. Fetch FairEconomy (PRIMARY - lebih stabil)
-    let feData = [];
-    const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+    // 1. Fetch BabyPips (PRIMARY - because it includes actual values after release)
+    let bpCal = [];
     try {
-      console.log("📅 Fetching Economic Calendar from FairEconomy Mirror...");
-      const feRes = await axios.get(feUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json, text/plain, */*"
-        },
-        timeout: 10000
+      const allBp = await fetchBabyPipsCalendar();
+      bpCal = allBp.filter(e => {
+          const name = e.event.toUpperCase();
+          const isMajor = majorCountries.includes(e.country);
+          const isHigh = e.impact === "High";
+          // Keep existing filter for specific events if needed
+          return isMajor && isHigh;
       });
-      if (Array.isArray(feRes.data)) feData = feRes.data;
-      console.log(`✅ FairEconomy: ${feData.length} events retrieved`);
-    } catch (err) {
-      console.warn("⚠️ FairEconomy fetch failed:", err.message);
+      console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
+    } catch (bpErr) {
+      console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
     }
 
-    // 2. Fetch BabyPips (SECONDARY - sebagai complement)
-    let bpCal = [];
-    if (feData.length === 0) {
-      // Hanya fetch BabyPips jika FairEconomy gagal total
+    // 2. Fetch FairEconomy (FALLBACK - if BabyPips fails or returns empty)
+    let feData = [];
+    if (bpCal.length === 0) {
+      const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
       try {
-        const allBp = await fetchBabyPipsCalendar();
-        bpCal = allBp.filter(e => {
-            const name = e.event.toUpperCase();
-            const isMajor = majorCountries.includes(e.country);
-            const isHigh = e.impact === "High";
-            if (e.country === "USD" && (name === "CPI" || name === "CPI S.A")) return false;
-            return isMajor && isHigh;
+        console.log("📅 Fetching Economic Calendar from FairEconomy Mirror (fallback)...");
+        const feRes = await axios.get(feUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*"
+          },
+          timeout: 10000
         });
-        console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
-      } catch (bpErr) {
-        console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
+        if (Array.isArray(feRes.data)) feData = feRes.data;
+        console.log(`✅ FairEconomy fallback: ${feData.length} events retrieved`);
+      } catch (err) {
+        console.warn("⚠️ FairEconomy fetch failed:", err.message);
       }
     }
 
     // 3. Determine base events
     let events = [];
-    if (feData.length > 0) {
+    if (bpCal.length > 0) {
+      events = bpCal; // BabyPips already has actual values
+    } else if (feData.length > 0) {
       events = feData.filter(e => majorCountries.includes(e.country) && e.impact === "High").map(e => ({
         type: "event",
         source: "FairEconomy",
@@ -290,12 +286,10 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
         impact: e.impact,
         forecast: e.forecast || "N/A",
         previous: e.previous || "N/A",
-        actual: e.actual || "N/A"
+        actual: e.actual || "N/A" // FairEconomy typically doesn't have actuals
       }));
-    } else if (bpCal.length > 0) {
-      events = bpCal;
     } else {
-      console.warn("⚠️ Both FairEconomy and BabyPips failed, returning cached data");
+      console.warn("⚠️ Both BabyPips and FairEconomy failed, returning cached data");
       return calendarCache.data;
     }
 
