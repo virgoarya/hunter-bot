@@ -246,23 +246,34 @@ async function fetchAndAnalyzeMacroNews() {
     // Combine and limit to top 1 total (to avoid rate limits)
     // Prioritize by recency: sort by date if available, otherwise by array order
     const allNews = [...twitterNews, ...reutersNews];
-    allNews.sort((a, b) => {
+
+    // FILTER BY RECENCY: Only include news from last 12 hours to ensure "breaking" means fresh
+    const RECENCY_HOURS = 12;
+    const cutoff = Date.now() - (RECENCY_HOURS * 60 * 60 * 1000);
+    const recentNews = allNews.filter(n => {
+      if (!n.date) return true; // Include if no date (better safe than miss)
+      return new Date(n.date).getTime() > cutoff;
+    });
+
+    if (recentNews.length === 0) {
+      console.log("ℹ️ No recent breaking macro news found (older than 12h).");
+      return [];
+    }
+
+    // Sort by date descending (newest first)
+    recentNews.sort((a, b) => {
       const dateA = a.date ? new Date(a.date) : new Date(0);
       const dateB = b.date ? new Date(b.date) : new Date(0);
       return dateB - dateA; // Newest first
     });
-    const selectedNews = allNews.slice(0, 1);
 
-    if (allNews.length === 0) {
-      console.log("ℹ️ No breaking macro news found after filtering.");
-      return [];
-    }
+    const selectedNews = recentNews.slice(0, 1);
 
-    console.log(`🎯 Total breaking news to analyze: ${allNews.length}`);
+    console.log(`🎯 Total recent breaking news: ${recentNews.length}, analyzing top 1`);
 
-    // 3. Analyze each with AI
+    // 3. Analyze each with AI (only selected top 1)
     const analyzedNews = [];
-    for (const news of allNews) {
+    for (const news of selectedNews) {
       console.log(`🤖 Analyzing: ${news.title.substring(0, 50)}...`);
       const analysis = await analyzeMacroNewsWithAI(news);
       if (analysis) {

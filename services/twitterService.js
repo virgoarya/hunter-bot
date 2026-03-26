@@ -309,6 +309,15 @@ async function fetchLatestTweets() {
             return [];
         }
 
+        // CRITICAL FIX: Sort items by date DESCENDING (newest first) to ensure cache logic works correctly
+        // Telegram returns items in chronological order (oldest first), Nitter returns reverse chronological (newest first)
+        // We need consistent ordering regardless of source
+        items.sort((a, b) => {
+            const dateA = a.date ? new Date(a.date).getTime() : 0;
+            const dateB = b.date ? new Date(b.date).getTime() : 0;
+            return dateB - dateA; // Newest first
+        });
+
         const cache = loadCache();
         const newTweets = [];
 
