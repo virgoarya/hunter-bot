@@ -305,15 +305,35 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
       return calendarCache.data;
     }
 
-    // 4. Supplement with AlphaVantage (6h Cache)
-    // Determine if we need to bypass cooldown to fill actuals
+    // 4. Supplement with AlphaVantage (6h Cache) for actual values
+    // Only fetch AV calendar if we have events needing actuals AND we're not rate limited
     const eventsNeedingActuals = events.filter(e => e.actual === "N/A");
     const needsActualsUrgently = eventsNeedingActuals.length > 0;
-    const avCal = await fetchAlphaVantageCalendar(forceRefresh || needsActualsUrgently);
+
+    // Additional optimization: Only request AV if there are recent/future events
+    // (skip old events that we don't need actuals for)
+    const now = Date.now();
+    const threeHoursAgo = now - (3 * 60 * 60 * 1000);
+    const tomorrow = now + (24 * 60 * 60 * 1000);
+    const recentOrFutureEvents = eventsNeedingActuals.filter(e => {
+      try {
+        const eventTime = new Date(e.date).getTime();
+        return eventTime >= threeHoursAgo && eventTime <= tomorrow;
+      } catch { return false; }
+    });
+
+    const shouldFetchAV = needsActualsUrgently && recentOrFutureEvents.length > 0;
+
+    let avCal = [];
+    if (shouldFetchAV) {
+      avCal = await fetchAlphaVantageCalendar(forceRefresh || needsActualsUrgently);
+    } else if (!shouldFetchAV && needsActualsUrgently) {
+      console.log(`⏳ Skipping AlphaVantage fetch: ${eventsNeedingActuals.length} events need actuals but none are recent enough (within 3h).`);
+    }
 
     const processedEvents = events.map(baseEvent => {
-      const feDateStr = baseEvent.date.split("T")[0];
       if (baseEvent.actual === "N/A" && avCal?.length > 0) {
+        const feDateStr = baseEvent.date.split("T")[0];
         const avMatch = avCal.find(av => {
           if (!av.date || !av.event) return false;
           return av.date === feDateStr && (baseEvent.event.toUpperCase().includes(av.event.toUpperCase()) || av.event.toUpperCase().includes(baseEvent.event.toUpperCase()));
