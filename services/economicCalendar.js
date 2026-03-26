@@ -2,7 +2,6 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const { fetchBabyPipsCalendar } = require("./babypipsScraper");
-const { fetchTradingEconomicsCalendar } = require("./tradingEconomicsCalendar");
 
 const CACHE_FILE = path.join(__dirname, "../calendar_cache.json");
 const AV_CACHE_FILE = path.join(__dirname, "../data/av_cache.json");
@@ -39,14 +38,7 @@ function loadAVCache() {
     try {
         if (fs.existsSync(AV_CACHE_FILE)) {
             const raw = fs.readFileSync(AV_CACHE_FILE, "utf8");
-            const data = JSON.parse(raw);
-            // Migrate old cache format (single lastCallTime) to separate timestamps
-            if (data.lastCallTime && !data.lastCalendarCallTime && !data.lastNewsCallTime) {
-                data.lastCalendarCallTime = data.lastCallTime;
-                data.lastNewsCallTime = data.lastCallTime;
-                delete data.lastCallTime;
-            }
-            return data;
+            return JSON.parse(raw);
         }
     } catch (e) {
         console.warn("AV Cache load error:", e.message);
@@ -55,8 +47,7 @@ function loadAVCache() {
         calendar: { data: [], updatedAt: 0 },
         news: { data: [], updatedAt: 0 },
         rateLimitedUntil: 0,
-        lastCalendarCallTime: 0,
-        lastNewsCallTime: 0
+        lastCallTime: 0
     };
 }
 
@@ -77,7 +68,7 @@ let pendingCalendarFetch = null;
 
 async function fetchAlphaVantageMacroNews(limit = 8) {
   const now = Date.now();
-
+  
   // 1. Check rate limit
   if (now < avCache.rateLimitedUntil) return avCache.news.data;
 
@@ -86,8 +77,8 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
       return avCache.news.data;
   }
 
-  // 3. Check Hard Cooldown (30 mins) - separate from calendar
-  if (now - (avCache.lastNewsCallTime || 0) < AV_HARD_COOLDOWN_MS) {
+  // 3. Check Hard Cooldown (30 mins)
+  if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
       console.log("⏳ AV News: Skipping due to hard cooldown.");
       return avCache.news.data;
   }
@@ -97,7 +88,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
     if (!apiKey) return [];
 
     console.log("📡 Fetching Macro News from AlphaVantage...");
-    avCache.lastNewsCallTime = now;
+    avCache.lastCallTime = now;
     saveAVCache(avCache);
 
     const response = await axios.get("https://www.alphavantage.co/query", {
@@ -147,7 +138,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
 
 async function fetchAlphaVantageCalendar(forceRefresh = false) {
   const now = Date.now();
-
+  
   // 1. Check rate limit hibernation
   if (now < avCache.rateLimitedUntil) {
     console.warn(`🛑 AlphaVantage in hibernation. skipping fetch for ${Math.round((avCache.rateLimitedUntil - now) / 1000 / 60)} minutes.`);
@@ -159,12 +150,8 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
     return avCache.calendar.data;
   }
 
-  // 3. Check Hard Cooldown (30 mins) - separate from news fetch
-  // Allow bypass if forceRefresh is true OR we need actual values urgently
-  // (e.g., when FairEconomy/BabyPips failed to provide actuals)
-  const needsActualsUrgently = false; // Will be set by caller if needed
-  const canBypassCooldown = forceRefresh || needsActualsUrgently;
-  if (!canBypassCooldown && now - (avCache.lastCalendarCallTime || 0) < AV_HARD_COOLDOWN_MS) {
+  // 3. Check Hard Cooldown (30 mins)
+  if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
       console.log("⏳ AV Calendar: Skipping due to hard cooldown.");
       return avCache.calendar.data;
   }
@@ -174,7 +161,7 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
     if (!apiKey) return [];
 
     console.log("📡 Fetching Actuals from AlphaVantage Calendar...");
-    avCache.lastCalendarCallTime = now;
+    avCache.lastCallTime = now;
     saveAVCache(avCache);
 
     const response = await axios.get("https://www.alphavantage.co/query", {
@@ -241,7 +228,12 @@ async function fetchEconomicCalendar(forceRefresh = false) {
 async function _fetchEconomicCalendarInternal(forceRefresh = false) {
   const now = Date.now();
 
-  // General cache TTL (15 min) - soft cache for normal requests
+  const FE_COOLDOWN_MS = 2 * 60 * 1000;
+  if (forceRefresh && now - calendarCache.updatedAt < FE_COOLDOWN_MS && calendarCache.data.length > 0) {
+    console.warn(`⏳ FairEconomy Cooldown Active. Bypass forceRefresh ditahan selama sisa ${(FE_COOLDOWN_MS - (now - calendarCache.updatedAt)) / 1000} detik.`);
+    return calendarCache.data;
+  }
+
   if (!forceRefresh && now - calendarCache.updatedAt < CACHE_MS && calendarCache.data.length > 0) {
     return calendarCache.data;
   }
@@ -249,67 +241,46 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
   try {
     const majorCountries = ["USD", "GBP", "EUR", "JPY", "CHF", "CAD"];
 
-    // 1. Fetch BabyPips (PRIMARY - because it includes actual values after release)
-    let bpCal = [];
-    try {
-      const allBp = await fetchBabyPipsCalendar();
-      bpCal = allBp.filter(e => {
-          const name = e.event.toUpperCase();
-          const isMajor = majorCountries.includes(e.country);
-          const isHigh = e.impact === "High";
-          return isMajor && isHigh;
-      });
-      console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
-    } catch (bpErr) {
-      console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
-    }
-
-    // 2. Fetch TradingEconomics (SECONDARY - has actual values, requires API key)
-    let teCal = [];
-    if (bpCal.length === 0) {
-      const teKey = process.env.TRADINGECONOMICS_API_KEY;
-      if (!teKey) {
-        console.log("🔑 TradingEconomics: No API key configured (TRADINGECONOMICS_API_KEY). Skipping.");
-      } else {
-        console.log(`🔑 TradingEconomics: API key found (length: ${teKey.length})`);
-      }
-      try {
-        teCal = await fetchTradingEconomicsCalendar();
-        // Filter to high-impact only (TE should already filter by importance='1')
-        teCal = teCal.filter(e => e.impact === "High");
-        console.log(`✅ TradingEconomics: ${teCal.length} high-impact events retrieved`);
-      } catch (teErr) {
-        console.warn("⚠️ TradingEconomics fetch failed:", teErr.message);
-      }
-    }
-
-    // 3. Fetch FairEconomy (FALLBACK - if BabyPips & TE fail)
+    // 1. Fetch FairEconomy (PRIMARY - lebih stabil)
     let feData = [];
-    if (bpCal.length === 0 && teCal.length === 0) {
-      const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+    const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+    try {
+      console.log("📅 Fetching Economic Calendar from FairEconomy Mirror...");
+      const feRes = await axios.get(feUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json, text/plain, */*"
+        },
+        timeout: 10000
+      });
+      if (Array.isArray(feRes.data)) feData = feRes.data;
+      console.log(`✅ FairEconomy: ${feData.length} events retrieved`);
+    } catch (err) {
+      console.warn("⚠️ FairEconomy fetch failed:", err.message);
+    }
+
+    // 2. Fetch BabyPips (SECONDARY - sebagai complement)
+    let bpCal = [];
+    if (feData.length === 0) {
+      // Hanya fetch BabyPips jika FairEconomy gagal total
       try {
-        console.log("📅 Fetching Economic Calendar from FairEconomy Mirror (fallback)...");
-        const feRes = await axios.get(feUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*"
-          },
-          timeout: 10000
+        const allBp = await fetchBabyPipsCalendar();
+        bpCal = allBp.filter(e => {
+            const name = e.event.toUpperCase();
+            const isMajor = majorCountries.includes(e.country);
+            const isHigh = e.impact === "High";
+            if (e.country === "USD" && (name === "CPI" || name === "CPI S.A")) return false;
+            return isMajor && isHigh;
         });
-        if (Array.isArray(feRes.data)) feData = feRes.data;
-        console.log(`✅ FairEconomy fallback: ${feData.length} events retrieved`);
-      } catch (err) {
-        console.warn("⚠️ FairEconomy fetch failed:", err.message);
+        console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
+      } catch (bpErr) {
+        console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
       }
     }
 
-    // 4. Determine base events
+    // 3. Determine base events
     let events = [];
-    if (bpCal.length > 0) {
-      events = bpCal; // BabyPips already has actual values
-    } else if (teCal.length > 0) {
-      events = teCal; // TradingEconomics has actual values
-    } else if (feData.length > 0) {
+    if (feData.length > 0) {
       events = feData.filter(e => majorCountries.includes(e.country) && e.impact === "High").map(e => ({
         type: "event",
         source: "FairEconomy",
@@ -321,40 +292,19 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
         previous: e.previous || "N/A",
         actual: e.actual || "N/A"
       }));
+    } else if (bpCal.length > 0) {
+      events = bpCal;
     } else {
-      console.warn("⚠️ All sources (BabyPips, TradingEconomics, FairEconomy) failed, returning cached data");
+      console.warn("⚠️ Both FairEconomy and BabyPips failed, returning cached data");
       return calendarCache.data;
     }
 
-    // 4. Supplement with AlphaVantage (6h Cache) for actual values
-    // Only fetch AV calendar if we have events needing actuals AND we're not rate limited
-    const eventsNeedingActuals = events.filter(e => e.actual === "N/A");
-    const needsActualsUrgently = eventsNeedingActuals.length > 0;
-
-    // Additional optimization: Only request AV if there are recent/future events
-    // (skip old events that we don't need actuals for)
-    const now = Date.now();
-    const threeHoursAgo = now - (3 * 60 * 60 * 1000);
-    const tomorrow = now + (24 * 60 * 60 * 1000);
-    const recentOrFutureEvents = eventsNeedingActuals.filter(e => {
-      try {
-        const eventTime = new Date(e.date).getTime();
-        return eventTime >= threeHoursAgo && eventTime <= tomorrow;
-      } catch { return false; }
-    });
-
-    const shouldFetchAV = needsActualsUrgently && recentOrFutureEvents.length > 0;
-
-    let avCal = [];
-    if (shouldFetchAV) {
-      avCal = await fetchAlphaVantageCalendar(forceRefresh || needsActualsUrgently);
-    } else if (!shouldFetchAV && needsActualsUrgently) {
-      console.log(`⏳ Skipping AlphaVantage fetch: ${eventsNeedingActuals.length} events need actuals but none are recent enough (within 3h).`);
-    }
+    // 4. Supplement with AlphaVantage (6h Cache)
+    const avCal = await fetchAlphaVantageCalendar(forceRefresh);
 
     const processedEvents = events.map(baseEvent => {
+      const feDateStr = baseEvent.date.split("T")[0];
       if (baseEvent.actual === "N/A" && avCal?.length > 0) {
-        const feDateStr = baseEvent.date.split("T")[0];
         const avMatch = avCal.find(av => {
           if (!av.date || !av.event) return false;
           return av.date === feDateStr && (baseEvent.event.toUpperCase().includes(av.event.toUpperCase()) || av.event.toUpperCase().includes(baseEvent.event.toUpperCase()));

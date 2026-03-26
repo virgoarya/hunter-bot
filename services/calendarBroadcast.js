@@ -281,7 +281,6 @@ async function getHighImpactAlerts() {
         // Main event data (with safe fallbacks)
         const forecast = e.forecast || "N/A";
         const previous = e.previous || "N/A";
-        const actual = e.actual || "⌛ Menunggu rilis...";
         const impact = e.impact || "High";
 
         embed.addFields(
@@ -290,7 +289,7 @@ async function getHighImpactAlerts() {
             { name: "📈 Dampak", value: impact, inline: true },
             { name: "🎯 Forecast", value: forecast, inline: true },
             { name: "📊 Sebelumnya", value: previous, inline: true },
-            { name: "✅ Aktual", value: actual, inline: true }
+            { name: "✅ Aktual", value: "⌛ Menunggu rilis...", inline: true }
         );
 
         // Add What-If analysis if available
