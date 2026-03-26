@@ -9,51 +9,76 @@ async function fetchTradingEconomicsCalendar() {
   try {
     const apiKey = process.env.TRADINGECONOMICS_API_KEY;
     if (!apiKey) {
-      console.log("⚠️ TradingEconomics: No API key (TRADINGECONOMICS_API_KEY)");
+      console.log("⚠️ TradingEconomics: No API key (TRADINGECONOMICS_API_KEY) set. Skipping.");
       return [];
     }
 
     // Login with the API key
-    te.login(apiKey);
+    try {
+      te.login(apiKey);
+    } catch (loginErr) {
+      console.error("❌ TradingEconomics login failed:", loginErr.message);
+      return [];
+    }
 
     // Fetch calendar for major countries only
     const countries = ['United States', 'Euro Zone', 'United Kingdom', 'Japan', 'Switzerland', 'Canada'];
     const allEvents = [];
 
+    console.log("📡 Fetching Economic Calendar from TradingEconomics...");
+
     for (const country of countries) {
       try {
+        const today = new Date().toISOString().split('T')[0];
+        const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
         // Fetch calendar for this country (next 7 days)
         const events = await te.getCalendar({
           country: country.toLowerCase(),
-          start_date: new Date().toISOString().split('T')[0],
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          start_date: today,
+          end_date: nextWeek,
           importance: '1' // Only high impact events
         });
 
-        if (Array.isArray(events)) {
-          const mapped = events.map(e => ({
-            type: 'event',
-            source: 'TradingEconomics',
-            date: e.date || e.DateTime,
-            country: mapCountry(e.country || e.Country),
-            event: e.event || e.Category || e.indicator || 'Unknown',
-            impact: mapImpact(e.importance || e.Importance),
-            forecast: e.forecast || e.Forecast || 'N/A',
-            previous: e.previous || e.Previous || 'N/A',
-            actual: e.actual || e.Actual || 'N/A',
-            // Keep original reference for matching
-            _teEvent: e
-          })).filter(e => e.country && e.event); // Filter valid entries
+        if (Array.isArray(events) && events.length > 0) {
+          console.log(`  📊 Raw TE [${country}]: ${events.length} events`);
+          const mapped = events.map(e => {
+            const mapped = {
+              type: 'event',
+              source: 'TradingEconomics',
+              date: e.date || e.DateTime,
+              country: mapCountry(e.country || e.Country),
+              event: e.event || e.Category || e.indicator || 'Unknown',
+              impact: mapImpact(e.importance || e.Importance),
+              forecast: e.forecast || e.Forecast || 'N/A',
+              previous: e.previous || e.Previous || 'N/A',
+              actual: e.actual || e.Actual || 'N/A',
+            };
+            return mapped;
+          }).filter(e => {
+            const valid = e.country && e.event && e.date && e.actual;
+            if (!valid) {
+              // Log why invalid for debugging
+              // console.log(`    Filtered out TE event:`, e);
+            }
+            return valid;
+          });
 
-          allEvents.push(...mapped);
-          console.log(`✅ TradingEconomics [${country}]: ${mapped.length} high-impact events`);
+          if (mapped.length > 0) {
+            allEvents.push(...mapped);
+            console.log(`  ✅ TradingEconomics [${country}]: ${mapped.length} high-impact events with actuals`);
+            // Show a sample
+            if (mapped[0]) {
+              console.log(`    Sample: ${mapped[0].country} ${mapped[0].event} | Actual: ${mapped[0].actual}`);
+            }
+          }
         }
       } catch (err) {
         console.warn(`⚠️ TradingEconomics [${country}] failed:`, err.message);
       }
     }
 
-    console.log(`✅ TradingEconomics total: ${allEvents.length} events`);
+    console.log(`✅ TradingEconomics total: ${allEvents.length} events with actual values`);
     return allEvents;
 
   } catch (error) {
