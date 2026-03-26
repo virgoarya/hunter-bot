@@ -20,18 +20,24 @@ function cleanHtml(html) {
 }
 
 const CACHE_FILE = path.join(__dirname, "../twitter_cache.json");
+
+// Updated list of Nitter instances (some may be down, we try them in order of reliability)
 const RSS_URLS = [
     "https://nitter.net/KobeissiLetter/rss",
-    "https://nitter.perennialte.ch/KobeissiLetter/rss",
-    "https://nitter.poast.org/KobeissiLetter/rss",
-    "https://nitter.cz/KobeissiLetter/rss",
     "https://nitter.privacydev.net/KobeissiLetter/rss",
+    "https://nitter.poast.org/KobeissiLetter/rss",
+    "https://nitter.perennialte.ch/KobeissiLetter/rss",
     "https://nitter.actionsack.com/KobeissiLetter/rss",
-    "https://nitter.42l.fr/KobeissiLetter/rss",
     "https://nitter.weiler.rocks/KobeissiLetter/rss",
+    "https://nitter.cz/KobeissiLetter/rss",
     "https://nitter.unixfox.eu/KobeissiLetter/rss",
-    "https://nitter.mastodont.cat/KobeissiLetter/rss"
+    "https://nitter.mastodont.cat/KobeissiLetter/rss",
+    "https://nitter.42l.fr/KobeissiLetter/rss"
 ];
+
+// HTTP client with better defaults
+const httpAgent = new (require('http').Agent)({ keepAlive: true });
+const httpsAgent = new (require('https').Agent)({ keepAlive: true, rejectUnauthorized: false });
 
 const TELEGRAM_URL = "https://t.me/s/TheKobeissiLetter";
 
@@ -200,77 +206,123 @@ async function fetchLatestTweets() {
     try {
         console.log("🐦 Fetching feeds from @KobeissiLetter...");
         let items = [];
-        let source = "nitter";
+        let source = null;
 
-        // Step 1: Try Nitter Instances with staggered delays
+        // Step 1: Try Nitter Instances with staggered delays and better error handling
+        console.log(`[Twitter] Trying ${RSS_URLS.length} Nitter mirrors...`);
         for (let i = 0; i < RSS_URLS.length; i++) {
             const url = RSS_URLS[i];
             try {
-                console.log(`[Twitter-Retry] Trying Nitter mirror: ${url}`);
+                console.log(`[Twitter-Retry ${i + 1}/${RSS_URLS.length}] Trying: ${url}`);
 
                 const response = await axios.get(url, {
                     headers: {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                        "Accept": "application/rss+xml, application/xml, */*",
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "Referer": "https://nitter.net/"
                     },
-                    timeout: 5000 // Increased timeout
+                    timeout: 8000, // 8 seconds timeout
+                    httpAgent: httpAgent,
+                    httpsAgent: httpsAgent,
+                    maxRedirects: 3,
+                    validateStatus: function (status) {
+                        // Accept 200-299, but we'll handle errors manually
+                        return status >= 200 && status < 300;
+                    }
                 });
 
-                if (response && response.data) {
+                if (response.status === 200 && response.data) {
                     const $ = cheerio.load(response.data, { xmlMode: true });
                     $("item").each((i, el) => {
                         const rawContent = $(el).find("description").text() || $(el).find("title").text();
                         const guid = $(el).find("guid").text();
                         const link = $(el).find("link").text();
-                        items.push({
-                            id: guid || link,
-                            content: cleanHtml(rawContent),
-                            link: link,
-                            date: $(el).find("pubDate").text()
-                        });
+                        if (rawContent && (guid || link)) {
+                            items.push({
+                                id: guid || link,
+                                content: cleanHtml(rawContent),
+                                link: link,
+                                date: $(el).find("pubDate").text()
+                            });
+                        }
                     });
 
                     if (items.length > 0) {
-                        console.log(`✅ Fetched ${items.length} items from ${url}`);
+                        source = "nitter";
+                        console.log(`✅ Nitter success [${url}]: ${items.length} items`);
                         break;
+                    } else {
+                        console.log(`⚠️ Nitter [${url}] returned 0 items (empty RSS)`);
                     }
+                } else {
+                    console.warn(`⚠️ Nitter [${url}] returned status ${response.status}`);
                 }
             } catch (err) {
                 const status = err.response?.status;
+                const message = err.message;
+
                 if (status === 429) {
-                    console.warn(`[Twitter-Retry] Nitter instance rate limited (429): ${url}`);
+                    console.warn(`[Twitter-Retry] Rate limited (429): ${url}`);
+                } else if (status === 403) {
+                    console.warn(`[Twitter-Retry] Forbidden (403): ${url} - instance blocked`);
+                } else if (status === 503) {
+                    console.warn(`[Twitter-Retry] Service Unavailable (503): ${url}`);
+                } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
+                    console.warn(`[Twitter-Retry] Connection failed (${err.code}): ${url}`);
                 } else {
-                    console.log(`[Twitter-Retry] Mirror failing: ${url} (${err.message})`);
+                    console.warn(`[Twitter-Retry] Error (${message}): ${url}`);
                 }
             }
 
-            // Add small delay before trying next mirror to avoid hammering
+            // Add delay before trying next mirror (increase delay after each failure)
             if (i < RSS_URLS.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                const delay = Math.min(500 + (i * 200), 2000); // 500ms to 2000ms progressive delay
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
 
-        // Step 2: Fallback to Telegram if Nitter failed
+        // Step 2: Fallback to Telegram if Nitter failed completely
         if (items.length === 0) {
-            console.log("� Telegram fallback activated...");
-            items = await fetchFromTelegram();
-            source = "telegram";
+            console.log("✈️ All Nitter mirrors failed, activating Telegram fallback...");
+            try {
+                items = await fetchFromTelegram();
+                if (items.length > 0) {
+                    source = "telegram";
+                    console.log(`✅ Telegram fallback success: ${items.length} items`);
+                } else {
+                    console.warn("⚠️ Telegram fallback returned 0 items");
+                }
+            } catch (telegramErr) {
+                console.error("❌ Telegram fallback error:", telegramErr.message);
+            }
         }
 
+        // Final check: if still no items, return empty
         if (items.length === 0) {
-            console.warn("📭 All sources (Nitter & Telegram) failed or returned no items.");
+            console.error("❌ All sources (Nitter & Telegram) failed completely");
             return [];
         }
 
         const cache = loadCache();
         const newTweets = [];
-        const lastId = (source === "nitter") ? cache.lastNitterId : cache.lastTelegramId;
 
-        // If it's the first time for this source, initialize and return nothing
+        // Determine which cache ID to use
+        let lastId = null;
+        let cacheKey = null;
+        if (source === "nitter") {
+            lastId = cache.lastNitterId;
+            cacheKey = "lastNitterId";
+        } else if (source === "telegram") {
+            lastId = cache.lastTelegramId;
+            cacheKey = "lastTelegramId";
+        }
+
+        // If it's the first time for this source, initialize cache and return nothing
         if (!lastId) {
-            if (source === "nitter") cache.lastNitterId = items[0].id;
-            else cache.lastTelegramId = items[0].id;
+            cache[cacheKey] = items[0].id;
             saveCache(cache);
-            console.log(`✅ Initialized ${source} cache with ID:`, items[0].id);
+            console.log(`✅ Initialized ${source} cache with ID: ${items[0].id.substring(0, 30)}...`);
             return [];
         }
 
@@ -281,15 +333,14 @@ async function fetchLatestTweets() {
         }
 
         if (newTweets.length === 0) {
-            console.log("📭 No new tweets found.");
+            console.log("📭 No new tweets found (cache hit).");
             return [];
         }
 
-        console.log(`📦 Found ${newTweets.length} new tweets`);
+        console.log(`📦 Found ${newTweets.length} new tweets from ${source}`);
 
-        // Update cache immediately (even if translation fails, we don't want to re-fetch these)
-        if (source === "nitter") cache.lastNitterId = items[0].id;
-        else cache.lastTelegramId = items[0].id;
+        // Update cache immediately (prevent re-fetching on next run)
+        cache[cacheKey] = items[0].id;
         saveCache(cache);
 
         // Translate new items in batch (with rate limit protection)
@@ -298,7 +349,10 @@ async function fetchLatestTweets() {
         // Return in chronological order (oldest first)
         return translatedTweets.reverse();
     } catch (error) {
-        console.error("Twitter service main error:", error.message);
+        console.error("❌ Twitter service main error:", error.message);
+        if (error.response) {
+            console.error(`   Status: ${error.response.status}`);
+        }
         return [];
     }
 }
