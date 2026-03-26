@@ -2,6 +2,7 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const { fetchBabyPipsCalendar } = require("./babypipsScraper");
+const { fetchTradingEconomicsCalendar } = require("./tradingEconomicsCalendar");
 
 const CACHE_FILE = path.join(__dirname, "../calendar_cache.json");
 const AV_CACHE_FILE = path.join(__dirname, "../data/av_cache.json");
@@ -256,7 +257,6 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
           const name = e.event.toUpperCase();
           const isMajor = majorCountries.includes(e.country);
           const isHigh = e.impact === "High";
-          // Keep existing filter for specific events if needed
           return isMajor && isHigh;
       });
       console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
@@ -264,9 +264,22 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
       console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
     }
 
-    // 2. Fetch FairEconomy (FALLBACK - if BabyPips fails or returns empty)
-    let feData = [];
+    // 2. Fetch TradingEconomics (SECONDARY - has actual values, requires API key)
+    let teCal = [];
     if (bpCal.length === 0) {
+      try {
+        teCal = await fetchTradingEconomicsCalendar();
+        // Filter to high-impact only
+        teCal = teCal.filter(e => e.impact === "High");
+        console.log(`✅ TradingEconomics: ${teCal.length} high-impact events retrieved`);
+      } catch (teErr) {
+        console.warn("⚠️ TradingEconomics fetch failed:", teErr.message);
+      }
+    }
+
+    // 3. Fetch FairEconomy (FALLBACK - if BabyPips & TE fail)
+    let feData = [];
+    if (bpCal.length === 0 && teCal.length === 0) {
       const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
       try {
         console.log("📅 Fetching Economic Calendar from FairEconomy Mirror (fallback)...");
@@ -284,10 +297,12 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
       }
     }
 
-    // 3. Determine base events
+    // 4. Determine base events
     let events = [];
     if (bpCal.length > 0) {
       events = bpCal; // BabyPips already has actual values
+    } else if (teCal.length > 0) {
+      events = teCal; // TradingEconomics has actual values
     } else if (feData.length > 0) {
       events = feData.filter(e => majorCountries.includes(e.country) && e.impact === "High").map(e => ({
         type: "event",
@@ -298,10 +313,10 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
         impact: e.impact,
         forecast: e.forecast || "N/A",
         previous: e.previous || "N/A",
-        actual: e.actual || "N/A" // FairEconomy typically doesn't have actuals
+        actual: e.actual || "N/A"
       }));
     } else {
-      console.warn("⚠️ Both BabyPips and FairEconomy failed, returning cached data");
+      console.warn("⚠️ All sources (BabyPips, TradingEconomics, FairEconomy) failed, returning cached data");
       return calendarCache.data;
     }
 
