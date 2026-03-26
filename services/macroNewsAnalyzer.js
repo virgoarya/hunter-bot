@@ -172,7 +172,7 @@ Keep it concise (max 20 lines). Use professional Indonesian. Be precise, not ver
     const response = await postToAI([
       { role: "system", content: "Kamu adalah Chief Macro Strategist di sebuah hedge fund institusi. Berikan analisis dengan penilaian kritis, jangan follow-the-crowd. Gunakan framework di atas." },
       { role: "user", content: prompt }
-    ], { temperature: 0.4, max_tokens: 800, timeout: 20000 });
+    ], { temperature: 0.4, max_tokens: 1500, timeout: 30000 });
 
     let analysis = response?.trim();
 
@@ -244,7 +244,14 @@ async function fetchAndAnalyzeMacroNews() {
     }
 
     // Combine and limit to top 1 total (to avoid rate limits)
-    const allNews = [...twitterNews, ...reutersNews].slice(0, 1);
+    // Prioritize by recency: sort by date if available, otherwise by array order
+    const allNews = [...twitterNews, ...reutersNews];
+    allNews.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB - dateA; // Newest first
+    });
+    const selectedNews = allNews.slice(0, 1);
 
     if (allNews.length === 0) {
       console.log("ℹ️ No breaking macro news found after filtering.");
@@ -313,7 +320,8 @@ async function broadcastMacroNewsAnalysis() {
           { name: "📰 Headline", value: analysis.title.substring(0, 256), inline: false },
           { name: "📰 Source", value: analysis.source, inline: true },
           { name: "🔗 Link", value: analysis.link ? `[Baca](${analysis.link})` : "N/A", inline: true },
-          { name: "🕒 Timestamp", value: new Date(analysis.timestamp).toLocaleString("id-ID"), inline: false }
+          { name: "🕒 Timestamp", value: new Date(analysis.timestamp).toLocaleString("id-ID"), inline: false },
+          { name: "⚠️ Disclaimer", value: "Analisis ini bersifat edukasional dan bukan rekomendasi investasi. Confidence score disarankan sebagai reference, bukan kepastian. Always do your own research (DYOR).", inline: false }
         )
         .setTimestamp()
         .setFooter({ text: "Critical Thinking Macro Desk | Hunter Bot" });
