@@ -147,6 +147,19 @@ function startAllSchedulers(callbacks) {
         console.log("  ✅ Reuters Finance: Every 30 minutes");
     }
 
+    // === MACRO NEWS ANALYSIS (Critical Thinking) - Every 15 minutes ===
+    if (callbacks.macroNewsAnalysis) {
+        cron.schedule("*/15 * * * *", async () => {
+            try {
+                console.log("🧠 Triggering Macro News Analysis (Critical Thinking)...");
+                await callbacks.macroNewsAnalysis();
+            } catch (err) {
+                console.error("❌ Macro News Analysis error:", err.message);
+            }
+        }, { timezone: 'Asia/Jakarta' });
+        console.log("  ✅ Macro News Analysis (Critical Thinking): Every 15 minutes");
+    }
+
     console.log("\n⏱️ All schedulers active!\n");
 
     // Run initial macro update on startup (silent, no broadcast)

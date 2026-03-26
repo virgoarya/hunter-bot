@@ -24,6 +24,7 @@ const { fetchCOTData, formatCOTReport } = require("./services/cotData");
 const { fetchMultiPrice, formatPriceTable } = require("./services/marketPrice");
 const { sendTwitterUpdate } = require("./bot/sendTwitterUpdate");
 const { sendReutersUpdate } = require("./bot/sendReutersUpdate"); // New
+const { broadcastMacroNewsAnalysis } = require("./services/macroNewsAnalyzer"); // New: Macro news critical thinking
 
 // === Utility: Split long messages ===
 function splitMessage(text, maxLength = 2000) {
@@ -173,6 +174,11 @@ client.once(Events.ClientReady, async () => {
     // Reuters Updates (Every 30 minutes)
     reutersUpdates: async () => {
       await sendReutersUpdate(client);
+    },
+
+    // Macro News Analysis with Critical Thinking (Every 15 minutes)
+    macroNewsAnalysis: async () => {
+      await broadcastMacroNewsAnalysis();
     },
   });
 });
