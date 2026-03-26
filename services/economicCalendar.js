@@ -267,9 +267,15 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
     // 2. Fetch TradingEconomics (SECONDARY - has actual values, requires API key)
     let teCal = [];
     if (bpCal.length === 0) {
+      const teKey = process.env.TRADINGECONOMICS_API_KEY;
+      if (!teKey) {
+        console.log("🔑 TradingEconomics: No API key configured (TRADINGECONOMICS_API_KEY). Skipping.");
+      } else {
+        console.log(`🔑 TradingEconomics: API key found (length: ${teKey.length})`);
+      }
       try {
         teCal = await fetchTradingEconomicsCalendar();
-        // Filter to high-impact only
+        // Filter to high-impact only (TE should already filter by importance='1')
         teCal = teCal.filter(e => e.impact === "High");
         console.log(`✅ TradingEconomics: ${teCal.length} high-impact events retrieved`);
       } catch (teErr) {
