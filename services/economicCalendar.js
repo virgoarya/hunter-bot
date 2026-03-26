@@ -159,7 +159,11 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
   }
 
   // 3. Check Hard Cooldown (30 mins) - separate from news fetch
-  if (!forceRefresh && now - (avCache.lastCalendarCallTime || 0) < AV_HARD_COOLDOWN_MS) {
+  // Allow bypass if forceRefresh is true OR we need actual values urgently
+  // (e.g., when FairEconomy/BabyPips failed to provide actuals)
+  const needsActualsUrgently = false; // Will be set by caller if needed
+  const canBypassCooldown = forceRefresh || needsActualsUrgently;
+  if (!canBypassCooldown && now - (avCache.lastCalendarCallTime || 0) < AV_HARD_COOLDOWN_MS) {
       console.log("⏳ AV Calendar: Skipping due to hard cooldown.");
       return avCache.calendar.data;
   }
@@ -302,7 +306,10 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
     }
 
     // 4. Supplement with AlphaVantage (6h Cache)
-    const avCal = await fetchAlphaVantageCalendar(forceRefresh);
+    // Determine if we need to bypass cooldown to fill actuals
+    const eventsNeedingActuals = events.filter(e => e.actual === "N/A");
+    const needsActualsUrgently = eventsNeedingActuals.length > 0;
+    const avCal = await fetchAlphaVantageCalendar(forceRefresh || needsActualsUrgently);
 
     const processedEvents = events.map(baseEvent => {
       const feDateStr = baseEvent.date.split("T")[0];
