@@ -38,7 +38,14 @@ function loadAVCache() {
     try {
         if (fs.existsSync(AV_CACHE_FILE)) {
             const raw = fs.readFileSync(AV_CACHE_FILE, "utf8");
-            return JSON.parse(raw);
+            const data = JSON.parse(raw);
+            // Migrate old cache format (single lastCallTime) to separate timestamps
+            if (data.lastCallTime && !data.lastCalendarCallTime && !data.lastNewsCallTime) {
+                data.lastCalendarCallTime = data.lastCallTime;
+                data.lastNewsCallTime = data.lastCallTime;
+                delete data.lastCallTime;
+            }
+            return data;
         }
     } catch (e) {
         console.warn("AV Cache load error:", e.message);
@@ -47,7 +54,8 @@ function loadAVCache() {
         calendar: { data: [], updatedAt: 0 },
         news: { data: [], updatedAt: 0 },
         rateLimitedUntil: 0,
-        lastCallTime: 0
+        lastCalendarCallTime: 0,
+        lastNewsCallTime: 0
     };
 }
 
@@ -68,7 +76,7 @@ let pendingCalendarFetch = null;
 
 async function fetchAlphaVantageMacroNews(limit = 8) {
   const now = Date.now();
-  
+
   // 1. Check rate limit
   if (now < avCache.rateLimitedUntil) return avCache.news.data;
 
@@ -77,8 +85,8 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
       return avCache.news.data;
   }
 
-  // 3. Check Hard Cooldown (30 mins)
-  if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
+  // 3. Check Hard Cooldown (30 mins) - separate from calendar
+  if (now - (avCache.lastNewsCallTime || 0) < AV_HARD_COOLDOWN_MS) {
       console.log("⏳ AV News: Skipping due to hard cooldown.");
       return avCache.news.data;
   }
@@ -88,7 +96,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
     if (!apiKey) return [];
 
     console.log("📡 Fetching Macro News from AlphaVantage...");
-    avCache.lastCallTime = now;
+    avCache.lastNewsCallTime = now;
     saveAVCache(avCache);
 
     const response = await axios.get("https://www.alphavantage.co/query", {
@@ -138,7 +146,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
 
 async function fetchAlphaVantageCalendar(forceRefresh = false) {
   const now = Date.now();
-  
+
   // 1. Check rate limit hibernation
   if (now < avCache.rateLimitedUntil) {
     console.warn(`🛑 AlphaVantage in hibernation. skipping fetch for ${Math.round((avCache.rateLimitedUntil - now) / 1000 / 60)} minutes.`);
@@ -150,8 +158,8 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
     return avCache.calendar.data;
   }
 
-  // 3. Check Hard Cooldown (30 mins)
-  if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
+  // 3. Check Hard Cooldown (30 mins) - separate from news fetch
+  if (!forceRefresh && now - (avCache.lastCalendarCallTime || 0) < AV_HARD_COOLDOWN_MS) {
       console.log("⏳ AV Calendar: Skipping due to hard cooldown.");
       return avCache.calendar.data;
   }
@@ -161,7 +169,7 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
     if (!apiKey) return [];
 
     console.log("📡 Fetching Actuals from AlphaVantage Calendar...");
-    avCache.lastCallTime = now;
+    avCache.lastCalendarCallTime = now;
     saveAVCache(avCache);
 
     const response = await axios.get("https://www.alphavantage.co/query", {
