@@ -241,42 +241,61 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
   try {
     const majorCountries = ["USD", "GBP", "EUR", "JPY", "CHF", "CAD"];
 
-    // 1. Fetch BabyPips (PRIMARY Skeleton)
-    let bpCal = [];
-    try {
-      const allBp = await fetchBabyPipsCalendar();
-      bpCal = allBp.filter(e => {
-          const name = e.event.toUpperCase();
-          const isMajor = majorCountries.includes(e.country);
-          const isHigh = e.impact === "High";
-          if (e.country === "USD" && (name === "CPI" || name === "CPI S.A")) return false;
-          return isMajor && isHigh;
-      });
-    } catch (bpErr) {
-      console.warn("⚠️ BabyPips primary fetch skipping:", bpErr.message);
-    }
-
-    // 2. Fetch FairEconomy (FALLBACK Skeleton)
+    // 1. Fetch FairEconomy (PRIMARY - lebih stabil)
     let feData = [];
     const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
     try {
       console.log("📅 Fetching Economic Calendar from FairEconomy Mirror...");
       const feRes = await axios.get(feUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json, text/plain, */*"
+        },
         timeout: 10000
       });
       if (Array.isArray(feRes.data)) feData = feRes.data;
-    } catch (err) { }
+      console.log(`✅ FairEconomy: ${feData.length} events retrieved`);
+    } catch (err) {
+      console.warn("⚠️ FairEconomy fetch failed:", err.message);
+    }
 
-    // 3. Base Skeleton
+    // 2. Fetch BabyPips (SECONDARY - sebagai complement)
+    let bpCal = [];
+    if (feData.length === 0) {
+      // Hanya fetch BabyPips jika FairEconomy gagal total
+      try {
+        const allBp = await fetchBabyPipsCalendar();
+        bpCal = allBp.filter(e => {
+            const name = e.event.toUpperCase();
+            const isMajor = majorCountries.includes(e.country);
+            const isHigh = e.impact === "High";
+            if (e.country === "USD" && (name === "CPI" || name === "CPI S.A")) return false;
+            return isMajor && isHigh;
+        });
+        console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
+      } catch (bpErr) {
+        console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
+      }
+    }
+
+    // 3. Determine base events
     let events = [];
-    if (bpCal.length > 0) {
-      events = bpCal;
-    } else if (feData.length > 0) {
+    if (feData.length > 0) {
       events = feData.filter(e => majorCountries.includes(e.country) && e.impact === "High").map(e => ({
-        type: "event", source: "FairEconomy", date: e.date, country: e.country, event: e.title, impact: e.impact, forecast: e.forecast || "N/A", previous: e.previous || "N/A", actual: e.actual || "N/A"
+        type: "event",
+        source: "FairEconomy",
+        date: e.date,
+        country: e.country,
+        event: e.title,
+        impact: e.impact,
+        forecast: e.forecast || "N/A",
+        previous: e.previous || "N/A",
+        actual: e.actual || "N/A"
       }));
+    } else if (bpCal.length > 0) {
+      events = bpCal;
     } else {
+      console.warn("⚠️ Both FairEconomy and BabyPips failed, returning cached data");
       return calendarCache.data;
     }
 
@@ -297,7 +316,7 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
 
     const avNews = await fetchAlphaVantageMacroNews(5);
     const merged = [...processedEvents, ...avNews];
-    
+
     calendarCache = { data: merged, updatedAt: now };
     saveCache(merged);
 
