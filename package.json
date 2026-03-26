@@ -18,5 +18,12 @@
     "dotenv": "^17.3.1",
     "node-cron": "^3.0.3",
     "tradingeconomics": "^2.5.7"
+  },
+  "overrides": {
+    "undici": "6.21.3"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0"
   }
 }
