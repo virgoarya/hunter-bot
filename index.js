@@ -144,12 +144,9 @@ client.once(Events.ClientReady, async () => {
         const channel = await client.channels.fetch(process.env.MACRO_CHANNEL_ID);
         if (channel) {
           for (const alert of alerts) {
-            await channel.send(
-              `⚠️ **PERINGATAN EVENT BERDAMPAK TINGGI** ⚠️\n\n` +
-              `📅 ${alert.country}: **${alert.event}**\n` +
-              `📊 Perkiraan: ${alert.forecast ?? "N/A"} | Sebelumnya: ${alert.previous ?? "N/A"}\n` +
-              `⏰ Dimulai dalam < 30 menit!`
-            );
+            // alert is already an object with { embeds: [...] } from getHighImpactAlerts()
+            // Just send it directly
+            await channel.send({ embeds: alert.embeds });
           }
         }
       }
