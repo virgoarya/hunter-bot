@@ -172,9 +172,17 @@ Keep it concise (max 20 lines). Use professional Indonesian. Be precise, not ver
     const response = await postToAI([
       { role: "system", content: "Kamu adalah Chief Macro Strategist di sebuah hedge fund institusi. Berikan analisis dengan penilaian kritis, jangan follow-the-crowd. Gunakan framework di atas." },
       { role: "user", content: prompt }
-    ], { temperature: 0.4, max_tokens: 600, timeout: 20000 });
+    ], { temperature: 0.4, max_tokens: 800, timeout: 20000 });
 
-    const analysis = response.trim();
+    let analysis = response?.trim();
+
+    // Validate analysis length - if too short, it's probably an error
+    if (!analysis || analysis.length < 50) {
+      console.warn(`⚠️ Analysis too short (${analysis?.length} chars) for: ${title.substring(0, 50)}...`);
+      analysis = `**Analisis singkat:**\n\n"${title}"\n\n` +
+                `📌 **Fakta:** ${snippet.substring(0, 200)}...\n\n` +
+                `⚠️ *Analisis detail gagal karena limitasi API. Silakan referensi link untuk konteks lengkap.*`;
+    }
 
     // Cache the result
     analysisCache[cacheKey] = {
@@ -291,20 +299,33 @@ async function broadcastMacroNewsAnalysis() {
     }
 
     for (const analysis of analyses) {
+      // Truncate analysis if too long for Discord embed description (max 4096)
+      let description = analysis.analysis || "*Analisis tidak tersedia*";
+      if (description.length > 4000) {
+        description = description.substring(0, 3997) + "...";
+      }
+
       const embed = new EmbedBuilder()
-        .setTitle("🎯 BREAKING MACRO ANALYSIS")
+        .setTitle(`🎯 BREAKING MACRO ANALYSIS`)
         .setColor("#e74c3c")
-        .setDescription(analysis.analysis)
+        .setDescription(description)
         .addFields(
+          { name: "📰 Headline", value: analysis.title.substring(0, 256), inline: false },
           { name: "📰 Source", value: analysis.source, inline: true },
-          { name: "🔗 Link", value: analysis.link ? `[Read](${analysis.link})` : "N/A", inline: true },
+          { name: "🔗 Link", value: analysis.link ? `[Baca](${analysis.link})` : "N/A", inline: true },
           { name: "🕒 Timestamp", value: new Date(analysis.timestamp).toLocaleString("id-ID"), inline: false }
         )
         .setTimestamp()
         .setFooter({ text: "Critical Thinking Macro Desk | Hunter Bot" });
 
-      await channel.send({ embeds: [embed] });
-      console.log(`📡 Broadcasted macro analysis: ${analysis.title.substring(0, 30)}...`);
+      try {
+        await channel.send({ embeds: [embed] });
+        console.log(`📡 Broadcasted macro analysis: ${analysis.title.substring(0, 30)}... (analysis length: ${analysis.analysis?.length || 0})`);
+      } catch (discordErr) {
+        console.error("❌ Failed to send embed:", discordErr.message);
+        // Try sending as plain text fallback
+        await channel.send(`**BREAKING MACRO ANALYSIS**\n\n${analysis.analysis}\n\nSource: ${analysis.source}\nLink: ${analysis.link || 'N/A'}`);
+      }
 
       // Delay between broadcasts
       await new Promise(resolve => setTimeout(resolve, 2000));
