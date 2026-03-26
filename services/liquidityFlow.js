@@ -100,7 +100,7 @@ Repo: ${repoData?.amountBillion}B (${repoData?.direction})`;
     ];
 
     console.log("🤖 Generating AI Insight for Flow...");
-    aiInsight = await postToAI(prompt, { temperature: 0.5, max_tokens: 150 });
+    aiInsight = await postToAI(prompt, { temperature: 0.5, max_tokens: 150, timeout: 20000 }); // 20s timeout for flow
   } catch (err) {
     console.error("AI Insight flow error:", err.message);
   }

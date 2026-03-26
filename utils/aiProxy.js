@@ -91,10 +91,14 @@ async function postToAI(messages, options = {}) {
     } catch (error) {
         const status = error.response?.status;
         const errorMsg = error.response?.data?.error?.message || error.message;
-        console.warn(`⚠️ [Primary Failed] Status: ${status} | Error: ${errorMsg}`);
+        const isTimeout = error.code === 'ECONNABORTED' || error.message?.toLowerCase().includes('timeout');
 
-        // 2. Try Google Gemini as first fallback for 429/402/401/403/5xx
-        if (status === 429 || status === 402 || status === 401 || status === 403 || status >= 500) {
+        console.warn(`⚠️ [Primary Failed] Status: ${status ?? 'N/A'} | Error: ${errorMsg} | Timeout: ${isTimeout}`);
+
+        // Always attempt fallback for: 429/402/401/403/5xx OR timeout errors
+        const shouldFallback = isTimeout || status === 429 || status === 402 || status === 401 || status === 403 || status >= 500;
+
+        if (shouldFallback) {
             try {
                 console.log("🔄 [AI] Step 2: Attempting Failover to Google Gemini (Sequence)...");
                 return await callGemini();
