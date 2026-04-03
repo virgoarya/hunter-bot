@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 // CFTC Combined Futures-Only Short Format (easier to parse)
-const CFTC_CSV_URL = "https://cftc.gov/dea/newcot/deafut.txt";
+const CFTC_CSV_URL = "https://www.cftc.gov/dea/newcot/deafut.txt";
 
 const CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (COT updates weekly)
 let cotCache = { data: null, updatedAt: 0 };
@@ -70,9 +70,11 @@ async function fetchCFTCReport(url, retries = 3) {
                 timeout: 30000,
                 responseType: "text",
                 headers: {
-                    "User-Agent": "PostmanRuntime/7.35.0",
-                    "Accept": "*/*",
-                    "Cache-Control": "no-cache"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/plain,text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache"
                 },
             });
 
