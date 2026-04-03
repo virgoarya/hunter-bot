@@ -1,13 +1,3 @@
-const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
-
-// CFTC Combined Futures-Only Short Format (easier to parse)
-const CFTC_CSV_URL = "https://www.cftc.gov/dea/newcot/deafut.txt";
-
-const CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (COT updates weekly)
-let cotCache = { data: null, updatedAt: 0 };
-
 const { fetchMarketBullCOT } = require("./marketBullScraper");
 
 // Contract names to track (partial match in CFTC report)
@@ -27,141 +17,56 @@ const TRACKED_CONTRACTS = [
 ];
 
 async function fetchCOTData(forceRefresh = false) {
-    const now = Date.now();
-    if (!forceRefresh && cotCache.data && now - cotCache.updatedAt < CACHE_MS) {
-        return cotCache.data;
-    }
-
+    // Always fetch fresh from MarketBull (no CFTC dependency)
     try {
-        const rawData = await fetchCFTCReport(CFTC_CSV_URL);
+        const results = [];
 
-        if (!rawData) {
-            console.error("CFTC report URL failed");
-            return cotCache.data || null;
-        }
-
-        const parsed = parseCOTReport(rawData);
-
-        // Enrichment with MarketBull Data (Index & Charts)
-        for (const contract of parsed.contracts) {
-            const tracked = TRACKED_CONTRACTS.find(t => t.alias === contract.name);
-            if (tracked && tracked.marketBullKey) {
-                console.log(`📊 Enriching ${contract.name} with MarketBull data...`);
-                const mbData = await fetchMarketBullCOT(tracked.marketBullKey);
-                if (mbData) {
-                    contract.marketBull = mbData;
-                }
-            }
-        }
-
-        cotCache = { data: parsed, updatedAt: now };
-        return parsed;
-    } catch (error) {
-        console.error("COT Data fetch error:", error.message);
-        return cotCache.data || null;
-    }
-}
-
-async function fetchCFTCReport(url, retries = 3) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            console.log(`📡 Fetching CFTC report (Attempt ${i + 1}/${retries})...`);
-            const response = await axios.get(url, {
-                timeout: 30000,
-                responseType: "text",
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Accept": "text/plain,text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache"
-                },
-            });
-
-            if (response.data && response.data.includes("WHEAT")) return response.data;
-        } catch (error) {
-            console.warn(`⚠️ CFTC fetch attempt ${i + 1} failed:`, error.message);
-            if (i < retries - 1) {
-                const delay = (i + 1) * 2000;
-                console.log(`⏳ Retrying in ${delay / 1000}s...`);
-                await new Promise(r => setTimeout(r, delay));
-            }
-        }
-    }
-
-    // FINAL FALLBACK: Local Mirror
-    try {
-        const localPath = path.join(__dirname, "../data/cot_raw.txt");
-        if (fs.existsSync(localPath)) {
-            console.log("📂 Using local COT mirror as fallback...");
-            return fs.readFileSync(localPath, "utf8");
-        }
-    } catch (err) {
-        console.warn("⚠️ Local COT mirror failed:", err.message);
-    }
-
-    return null;
-}
-
-function parseCOTReport(rawText) {
-    const results = [];
-    let reportDate = "Unknown";
-
-    const lines = rawText.split("\n").filter(l => l.trim().length > 0);
-
-    for (const tracked of TRACKED_CONTRACTS) {
-        // Find the line that starts with or contains the contract name
-        const contractLine = lines.find(l => l.toUpperCase().includes(tracked.search.toUpperCase()));
-
-        if (contractLine) {
-            // It's a CSV format, but can contain quoted strings with commas inside, e.g., "EURO FX - CHICAGO MERCANTILE EXCHANGE"
-            // Simple parse approach: split by comma, handling quotes if necessary. 
-            // CFTC typical lines: "WHEAT-SRW - CHICAGO...",260224,2026-02-24,001602,...
-
-            const cols = contractLine.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-            if (!cols || cols.length < 15) continue; // safety check
-
-            // Clean quotes and spaces
-            const cleanCols = cols.map(c => c.replace(/^"|"$/g, "").trim());
-
-            if (reportDate === "Unknown") {
-                reportDate = cleanCols[2]; // Usually YYYY-MM-DD
-            }
-
-            // Based on CFTC short format columns:
-            // 7 = Open Interest
-            // 8 = Non-Commercial Long (Speculator)
-            // 9 = Non-Commercial Short (Speculator)
-            // 10 = Non-Commercial Spreads
-            // 11 = Commercial Long
-            // 12 = Commercial Short
-
-            const openInterest = parseInt(cleanCols[7], 10) || 0;
-            const nonCommLong = parseInt(cleanCols[8], 10) || 0;
-            const nonCommShort = parseInt(cleanCols[9], 10) || 0;
-            const commLong = parseInt(cleanCols[11], 10) || 0;
-            const commShort = parseInt(cleanCols[12], 10) || 0;
-
-            const netSpeculator = nonCommLong - nonCommShort;
-            const netCommercial = commLong - commShort;
-
-            results.push({
+        for (const tracked of TRACKED_CONTRACTS) {
+            // Initialize contract with defaults
+            const contract = {
                 name: tracked.alias,
                 category: tracked.category,
-                openInterest,
-                speculator: { long: nonCommLong, short: nonCommShort, net: netSpeculator },
-                commercial: { long: commLong, short: commShort, net: netCommercial },
-                sentiment: netSpeculator > 0 ? "BULLISH" : netSpeculator < 0 ? "BEARISH" : "NETRAL",
-            });
-        }
-    }
+                openInterest: 0, // MarketBull doesn't provide this
+                speculator: { long: 0, short: 0, net: 0 },
+                commercial: { long: 0, short: 0, net: 0 },
+                sentiment: "N/A",
+                marketBull: null
+            };
 
-    return {
-        contracts: results,
-        reportDate,
-        fetchedAt: new Date().toISOString(),
-    };
+            // Fetch MarketBull data only (primary source)
+            if (tracked.marketBullKey) {
+                try {
+                    const mbData = await fetchMarketBullCOT(tracked.marketBullKey);
+                    if (mbData) {
+                        contract.marketBull = mbData;
+
+                        // Parse net position from MarketBull string (e.g., "+1234" or "-567")
+                        const netPosStr = mbData.netPosition;
+                        if (netPosStr && netPosStr !== "N/A") {
+                            const net = parseInt(netPosStr.replace(/[^\d-]/g, '')) || 0;
+                            contract.speculator.net = net;
+                            contract.sentiment = net > 0 ? "BULLISH" : net < 0 ? "BEARISH" : "NETRAL";
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ MarketBull fetch failed for ${tracked.alias}:`, err.message);
+                }
+            }
+
+            results.push(contract);
+        }
+
+        return {
+            contracts: results,
+            reportDate: new Date().toISOString().split('T')[0], // Approximate date
+            fetchedAt: new Date().toISOString(),
+        };
+    } catch (error) {
+        console.error("COT Data fetch error:", error.message);
+        return null;
+    }
 }
+
 
 function formatCOTReport(cotData) {
     if (!cotData || !cotData.contracts?.length) {
