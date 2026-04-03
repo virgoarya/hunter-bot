@@ -1,6 +1,8 @@
+const fs = require("fs");
+const path = require("path");
 const { fetchMarketBullCOT } = require("./marketBullScraper");
 
-// Contract names to track (partial match in CFTC report)
+// Contract names to track (map to CFTC report search strings and MarketBull keys)
 const TRACKED_CONTRACTS = [
     { search: "EURO FX", alias: "EUR/USD", category: "forex", marketBullKey: "eur" },
     { search: "BRITISH POUND", alias: "GBP/USD", category: "forex", marketBullKey: "gbp" },
@@ -9,48 +11,82 @@ const TRACKED_CONTRACTS = [
     { search: "CANADIAN DOLLAR", alias: "USD/CAD", category: "forex", marketBullKey: "cad" },
     { search: "SWISS FRANC", alias: "USD/CHF", category: "forex", marketBullKey: "chf" },
     { search: "GOLD", alias: "GOLD", category: "commodity", marketBullKey: "gold" },
-    { search: "SILVER", alias: "SILVER", category: "commodity" },
-    { search: "CRUDE OIL", alias: "OIL", category: "commodity" },
+    { search: "SILVER", alias: "SILVER", category: "commodity" }, // No MarketBull
+    { search: "CRUDE OIL", alias: "OIL", category: "commodity" }, // No MarketBull
     { search: "E-MINI S&P 500", alias: "S&P 500", category: "index", marketBullKey: "sp500" },
     { search: "NASDAQ-100", alias: "NASDAQ", category: "index", marketBullKey: "nasdaq" },
     { search: "U.S. DOLLAR INDEX", alias: "USD Index", category: "index", marketBullKey: "usd" },
 ];
 
+const CFTC_LOCAL_FILE = path.join(__dirname, "../data/cot_raw.txt");
+const MARKETBULL_MIRROR = path.join(__dirname, "../data/marketbull_cot.json");
+
 async function fetchCOTData(forceRefresh = false) {
-    // Always fetch fresh from MarketBull (no CFTC dependency)
+    // Hybrid: CFTC local mirror (net positions) + MarketBull mirror (indices)
     try {
+        // 1. Load CFTC local mirror (cot_raw.txt)
+        let cftcLines = [];
+        if (fs.existsSync(CFTC_LOCAL_FILE)) {
+            const raw = fs.readFileSync(CFTC_LOCAL_FILE, "utf8");
+            cftcLines = raw.split("\n").filter(l => l.trim().length > 0);
+            console.log(`📂 Loaded CFTC mirror: ${CFTC_LOCAL_FILE} (${cftcLines.length} lines)`);
+        } else {
+            console.warn("⚠️ CFTC local mirror not found:", CFTC_LOCAL_FILE);
+        }
+
+        // 2. Load MarketBull mirror (marketbull_cot.json)
+        let mbMirror = {};
+        if (fs.existsSync(MARKETBULL_MIRROR)) {
+            mbMirror = JSON.parse(fs.readFileSync(MARKETBULL_MIRROR, "utf8"));
+            console.log(`📂 Loaded MarketBull mirror: ${MARKETBULL_MIRROR} (${Object.keys(mbMirror.data || {}).length} assets)`);
+        } else {
+            console.warn("⚠️ MarketBull mirror not found:", MARKETBULL_MIRROR);
+        }
+
+        // 3. Build contracts from both sources
         const results = [];
+        const reportDate = mbMirror.lastUpdate || new Date().toISOString().split('T')[0];
 
         for (const tracked of TRACKED_CONTRACTS) {
-            // Initialize contract with defaults
             const contract = {
                 name: tracked.alias,
                 category: tracked.category,
-                openInterest: 0, // MarketBull doesn't provide this
+                openInterest: 0,
                 speculator: { long: 0, short: 0, net: 0 },
                 commercial: { long: 0, short: 0, net: 0 },
                 sentiment: "N/A",
                 marketBull: null
             };
 
-            // Fetch MarketBull data only (primary source)
-            if (tracked.marketBullKey) {
-                try {
-                    const mbData = await fetchMarketBullCOT(tracked.marketBullKey);
-                    if (mbData) {
-                        contract.marketBull = mbData;
+            // A. Get net position & open interest from CFTC local mirror (parse CSV)
+            if (cftcLines.length > 0) {
+                const contractLine = cftcLines.find(l => l.toUpperCase().includes(tracked.search.toUpperCase()));
+                if (contractLine) {
+                    const cols = contractLine.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                    if (cols && cols.length >= 15) {
+                        const cleanCols = cols.map(c => c.replace(/^"|"$/g, "").trim());
+                        contract.openInterest = parseInt(cleanCols[7], 10) || 0;
+                        const nonCommLong = parseInt(cleanCols[8], 10) || 0;
+                        const nonCommShort = parseInt(cleanCols[9], 10) || 0;
+                        const commLong = parseInt(cleanCols[11], 10) || 0;
+                        const commShort = parseInt(cleanCols[12], 10) || 0;
 
-                        // Parse net position from MarketBull string (e.g., "+1234" or "-567")
-                        const netPosStr = mbData.netPosition;
-                        if (netPosStr && netPosStr !== "N/A") {
-                            const net = parseInt(netPosStr.replace(/[^\d-]/g, '')) || 0;
-                            contract.speculator.net = net;
-                            contract.sentiment = net > 0 ? "BULLISH" : net < 0 ? "BEARISH" : "NETRAL";
-                        }
+                        contract.speculator.net = nonCommLong - nonCommShort;
+                        contract.commercial.net = commLong - commShort;
+                        contract.sentiment = contract.speculator.net > 0 ? "BULLISH" : contract.speculator.net < 0 ? "BEARISH" : "NETRAL";
                     }
-                } catch (err) {
-                    console.warn(`⚠️ MarketBull fetch failed for ${tracked.alias}:`, err.message);
                 }
+            }
+
+            // B. Get MarketBull index enrichment (if available)
+            if (tracked.marketBullKey && mbMirror.data && mbMirror.data[tracked.marketBullKey]) {
+                const mb = mbMirror.data[tracked.marketBullKey];
+                contract.marketBull = {
+                    cotIndex6M: mb.index6M || "N/A",
+                    cotIndex36M: mb.index36M || "N/A",
+                    netPosition: mb.netPosition || "N/A",
+                    chartUrl: mb.url || `https://market-bulls.com/cot-report-${tracked.marketBullKey}/`
+                };
             }
 
             results.push(contract);
@@ -58,7 +94,7 @@ async function fetchCOTData(forceRefresh = false) {
 
         return {
             contracts: results,
-            reportDate: new Date().toISOString().split('T')[0], // Approximate date
+            reportDate,
             fetchedAt: new Date().toISOString(),
         };
     } catch (error) {
