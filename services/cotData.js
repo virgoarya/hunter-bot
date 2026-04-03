@@ -45,7 +45,20 @@ async function fetchCOTData(forceRefresh = false) {
 
         // 3. Build contracts from both sources
         const results = [];
-        const reportDate = mbMirror.lastUpdate || new Date().toISOString().split('T')[0];
+        // Extract report date from CFTC file (more accurate) or fallback to MarketBull mirror
+        let reportDate = mbMirror.lastUpdate || new Date().toISOString().split('T')[0];
+        if (cftcLines.length > 0) {
+            // CFTC format: "CONTRACT...",YYMMDD,YYYY-MM-DD,...
+            const firstLine = cftcLines[0];
+            const cols = firstLine.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            if (cols && cols.length >= 3) {
+                // Column 2 is YYYY-MM-DD
+                const dateCol = cols[2].replace(/^"|"$/g, '').trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateCol)) {
+                    reportDate = dateCol;
+                }
+            }
+        }
 
         for (const tracked of TRACKED_CONTRACTS) {
             const contract = {
