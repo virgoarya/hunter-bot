@@ -82,6 +82,33 @@ async function postToAI(messages, options = {}) {
         throw new Error("All Gemini models failed or hit limit.");
     };
 
+    // Helper: Call Groq
+    const callGroq = async () => {
+        const apiKeyGroq = process.env.GROQ_API_KEY;
+        if (!apiKeyGroq) throw new Error("GROQ_API_KEY_MISSING");
+
+        const model = "llama-3.3-70b-versatile";
+        console.log(`📡 [AI] Trying Groq Model: ${model}...`);
+        
+        const payload = {
+            model: model,
+            messages: messages,
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.max_tokens || 2000
+        };
+
+        const config = {
+            timeout: options.timeout || 30000,
+            headers: {
+                "Authorization": `Bearer ${apiKeyGroq}`,
+                "Content-Type": "application/json"
+            }
+        };
+
+        const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", payload, config);
+        return response.data.choices[0].message.content;
+    };
+
     // --- EXECUTION FLOW ---
 
     try {
@@ -105,13 +132,21 @@ async function postToAI(messages, options = {}) {
             } catch (geminiError) {
                 console.error("❌ [Gemini Sequence Failed]:", geminiError.message);
 
-                // 3. Try NVIDIA Nemotron (OpenRouter) as last resort
+                // 3. Try Groq
                 try {
-                    console.log("🔄 [AI] Step 3: Final Attempt with NVIDIA Nemotron (OpenRouter)...");
-                    return await callOpenRouter("nvidia/nemotron-3-super-120b-a12b:free");
-                } catch (lastError) {
-                    console.error("💀 [AI] All Providers Exhausted.");
-                    throw new Error(`All AI providers failed. Last Error: ${lastError.message}`);
+                    console.log("🔄 [AI] Step 3: Attempting Failover to Groq...");
+                    return await callGroq();
+                } catch (groqError) {
+                    console.error("❌ [Groq Failed]:", groqError.message);
+
+                    // 4. Try NVIDIA Nemotron (OpenRouter) as last resort
+                    try {
+                        console.log("🔄 [AI] Step 4: Final Attempt with NVIDIA Nemotron (OpenRouter)...");
+                        return await callOpenRouter("nvidia/nemotron-3-super-120b-a12b:free");
+                    } catch (lastError) {
+                        console.error("💀 [AI] All Providers Exhausted.");
+                        throw new Error(`All AI providers failed. Last Error: ${lastError.message}`);
+                    }
                 }
             }
         }
