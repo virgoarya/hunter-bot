@@ -1,4 +1,5 @@
 const { getAdaptiveThresholds } = require("./adaptiveThresholds");
+const { DEFAULTS } = require("../config/thresholdDefaults");
 
 function classifyRegime(state) {
   if (!state?.DXY || !state?.US10Y || !state?.NASDAQ || !state?.GOLD || !state?.VIX) {
@@ -8,10 +9,10 @@ function classifyRegime(state) {
     };
   }
 
-  // Get Adaptive Thresholds
-  const vTh = getAdaptiveThresholds("VIX", { high: 28, veryHigh: 35, low: 16, mean: 20 });
-  const yTh = getAdaptiveThresholds("US10Y", { high: 4.2, low: 3.8, mean: 4.0 });
-  const dTh = getAdaptiveThresholds("DXY", { high: 100.2, low: 98.8, mean: 99.5 });
+  // Get Adaptive Thresholds (with centralized defaults as fallback)
+  const vTh = getAdaptiveThresholds("VIX", { high: DEFAULTS.VIX.high, veryHigh: DEFAULTS.VIX.veryHigh, low: DEFAULTS.VIX.low, mean: DEFAULTS.VIX.mean });
+  const yTh = getAdaptiveThresholds("US10Y", { high: DEFAULTS.US10Y.high, low: DEFAULTS.US10Y.low, mean: DEFAULTS.US10Y.mean });
+  const dTh = getAdaptiveThresholds("DXY", { high: DEFAULTS.DXY.high, low: DEFAULTS.DXY.low, mean: DEFAULTS.DXY.mean });
 
   const dxy = state.DXY.close;
   const us10y = state.US10Y.close;

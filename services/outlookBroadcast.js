@@ -175,7 +175,7 @@ async function buildCOTBroadcast() {
         .setTimestamp();
 
     let description = `**Tanggal Laporan (CFTC):** ${cotData.reportDate}\n` +
-        `_Data ini mingguan, diambil dari laporan resmi CFTC (deafut.txt). Gunakan untuk baca positioning, bukan intraday timing._\n\n`;
+        `_Data ini mingguan, diambil dari laporan resmi CFTC (deafut.txt). COT Index dari MarketBull. Gunakan untuk baca positioning, bukan intraday timing._\n\n`;
 
     // Contracts - Split by category
     const forex = cotData.contracts.filter(c => c.category === "forex");

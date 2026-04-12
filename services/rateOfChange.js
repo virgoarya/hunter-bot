@@ -5,6 +5,7 @@
  */
 
 const { getSnapshotHoursAgo } = require("./macroHistory");
+const { DEFAULTS } = require("../config/thresholdDefaults");
 
 /**
  * Menghitung persentase perubahan antara sekarang dan N jam yang lalu.
@@ -36,7 +37,8 @@ function analyzeRateOfChange(state) {
         { key: "US10Y", isPct: true },
         { key: "DXY", isPct: false },
         { key: "NASDAQ", isPct: false },
-        { key: "GOLD", isPct: false }
+        { key: "GOLD", isPct: false },
+        { key: "OIL", isPct: false }
     ];
 
     for (const inst of instruments) {
@@ -49,20 +51,25 @@ function analyzeRateOfChange(state) {
             shockType: null
         };
 
-        // Deteksi Shock (Kecepatan ekstrem)
-        if (inst.key === "VIX" && results[inst.key].roc24h > 15) {
+        // Deteksi Shock (menggunakan centralized thresholds)
+        if (inst.key === "VIX" && results[inst.key].roc24h > DEFAULTS.Shocks.VIX_SURGE) {
             results[inst.key].hasShock = true;
             results[inst.key].shockType = "VOLATILITY_SURGE ⚡";
         }
         
-        if (inst.key === "US10Y" && Math.abs(results[inst.key].roc24h) > 0.15) {
+        if (inst.key === "US10Y" && Math.abs(results[inst.key].roc24h) > DEFAULTS.Shocks.YIELD_STRESS) {
             results[inst.key].hasShock = true;
             results[inst.key].shockType = "YIELD_STRESS 🌋";
         }
 
-        if (inst.key === "NASDAQ" && results[inst.key].roc24h < -2.0) {
+        if (inst.key === "NASDAQ" && results[inst.key].roc24h < DEFAULTS.Shocks.EQUITY_LIQUIDATION) {
             results[inst.key].hasShock = true;
             results[inst.key].shockType = "EQUITY_LIQUIDATION 🩸";
+        }
+
+        if (inst.key === "OIL" && Math.abs(results[inst.key].roc24h) > DEFAULTS.Shocks.OIL_SPIKE) {
+            results[inst.key].hasShock = true;
+            results[inst.key].shockType = results[inst.key].roc24h > 0 ? "OIL_SPIKE 🛢️🔥" : "OIL_CRASH 🛢️📉";
         }
     }
 

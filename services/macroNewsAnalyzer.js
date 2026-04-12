@@ -91,18 +91,35 @@ async function analyzeMacroNewsWithAI(newsItem) {
     const snippet = newsItem.snippet || newsItem.content || "";
     const link = newsItem.link || "";
 
-    // Additional context: current market state if available
+    // Additional context: current market state with full institutional desk data
     let marketContext = "";
     try {
       const { getMacroState } = require("./macroData");
+      const { classifyRegime } = require("./regime");
+      const { buildBias } = require("./biasEngine");
+      const { detectIntent } = require("./intentEngine");
+      const { detectCorrelationPatterns } = require("./correlationEngine");
+
       const state = getMacroState();
       if (state && state.isHealthy) {
+        const regime = classifyRegime(state);
+        const bias = buildBias(state, regime);
+        const intent = detectIntent(state);
+        const correlation = detectCorrelationPatterns(state);
+
         marketContext = `
-Current Market Snapshot:
+Current Institutional Desk Context:
+- Regime: ${regime.regime} (${regime.description})
+- Intent: ${intent.intent} (${intent.description})
+- Correlation: ${correlation?.signal || "NETRAL"} (${correlation?.description || "N/A"})
+- USD Bias: ${bias.usdBias} | Gold Bias: ${bias.goldBias} | Equity Bias: ${bias.equityBias} | Oil Bias: ${bias.oilBias || "N/A"}
+
+Market Snapshot:
 - DXY: ${state.DXY?.close} (${state.DXY?.change}%)
 - US10Y: ${state.US10Y?.close}% (${state.US10Y?.change})
 - NASDAQ: ${state.NASDAQ?.close} (${state.NASDAQ?.change})
 - GOLD: ${state.GOLD?.close} (${state.GOLD?.change})
+- OIL: ${state.OIL?.close ?? "N/A"} (${state.OIL?.change ?? "N/A"})
 - VIX: ${state.VIX?.close}`;
       }
     } catch (e) {

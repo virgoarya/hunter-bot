@@ -148,32 +148,6 @@ function analyzeCOTChanges(cotData, state = null) {
             }
         }
 
-        // --- ENHANCED COT LOGIC (MOMENTUM & PRICE ACTION) ---
-        // 1. Smart Money Reversal (Commercials flip position drastically)
-        if (prevContract) {
-            const commercialChange = contract.commercial.net - prevContract.netCommercial;
-            if (prevContract.netCommercial > 0 && contract.commercial.net < 0 && commercialChange < -10000) {
-                entry.signal = "🚨 SMART_MONEY_REVERSAL (BEARISH)";
-            } else if (prevContract.netCommercial < 0 && contract.commercial.net > 0 && commercialChange > 10000) {
-                entry.signal = "🚨 SMART_MONEY_REVERSAL (BULLISH)";
-            }
-        }
-
-        // 2. Extreme Positioning vs Price Action (Squeeze / Liquidation)
-        if (state && state.isHealthy) {
-            // Helper to get asset change percentage based on COT name
-            let assetChange = 0;
-            if (contract.name.includes("USD") || contract.name.includes("DOLLAR")) assetChange = parseFloat(state.DXY?.change) || 0;
-            else if (contract.name.includes("GOLD")) assetChange = parseFloat(state.GOLD?.change) || 0;
-            else if (contract.name.includes("NASDAQ") || contract.name.includes("S&P")) assetChange = parseFloat(state.NASDAQ?.change) || 0;
-
-            if (entry.signal === "EXTREME_SHORT_CROWDING" && assetChange > 0.5) {
-                entry.signal = "⚠️ POTENTIAL_SHORT_SQUEEZE";
-            } else if (entry.signal === "EXTREME_LONG_CROWDING" && assetChange < -0.5) {
-                entry.signal = "⚠️ POTENTIAL_LONG_LIQUIDATION";
-            }
-        }
-
         analysis.push(entry);
     }
 

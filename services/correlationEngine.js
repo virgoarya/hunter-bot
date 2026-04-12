@@ -10,6 +10,7 @@ function detectCorrelationPatterns(state) {
     const goldChange = parseFloat(state.GOLD?.change) || 0;
     const dxyChange = parseFloat(state.DXY?.change) || 0;
     const yieldChange = parseFloat(state.US10Y?.change) || 0;
+    const oilChange = parseFloat(state.OIL?.change) || 0;
     const repoData = state.RepoData;
     const repoChange = repoData && !repoData.error ? parseFloat(repoData.changePercent) || 0 : 0;
 
@@ -24,6 +25,14 @@ function detectCorrelationPatterns(state) {
     } else if (goldChange < -0.2 && nasdaqChange > 0.3 && repoChange < -5) {
         signal = "RISK-ON SEJATI 🚀";
         description = "Korelasi positif pertumbuhan: Dana mengalir dari kas (Repo) dan emas ke pasar ekuitas.";
+        strength = "High";
+    } else if (oilChange > 1.5 && goldChange > 0.3) {
+        signal = "INFLATION FEAR 🔥";
+        description = "Minyak dan Emas naik bersamaan — sinyal kuat kekhawatiran inflasi. Potensi tekanan pada ekuitas dan obligasi.";
+        strength = "High";
+    } else if (oilChange < -2 && nasdaqChange < -0.5) {
+        signal = "DEMAND DESTRUCTION 📉";
+        description = "Minyak dan Ekuitas jatuh bersamaan — sinyal ketakutan perlambatan ekonomi (demand destruction).";
         strength = "High";
     } else if (yieldChange > 0.02 && nasdaqChange > 0.4) {
         signal = "HEALTHY GROWTH 🔋";

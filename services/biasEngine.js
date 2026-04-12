@@ -1,18 +1,20 @@
 const { getAdaptiveThresholds } = require("./adaptiveThresholds");
 const { getSeasonalTendency } = require("./seasonality");
+const { DEFAULTS } = require("../config/thresholdDefaults");
 
 function buildBias(macro, regimeObj, thresholds = {}) {
   const currentMonth = new Date().getMonth();
   const seasonal = getSeasonalTendency(currentMonth);
 
-  if (!macro) return { usdBias: "N/A", goldBias: "N/A", equityBias: "N/A", seasonality: seasonal };
+  if (!macro) return { usdBias: "N/A", goldBias: "N/A", equityBias: "N/A", oilBias: "N/A", seasonality: seasonal };
 
-  // Get Adaptive Thresholds
-  const yTh = getAdaptiveThresholds("US10Y", { high: 4.2, low: 3.8, mean: 4.0 });
-  const vTh = getAdaptiveThresholds("VIX", { high: 22, low: 16, mean: 19 });
-  const rTh = getAdaptiveThresholds("RealYield", { high: 1.9, low: 1.4, mean: 1.65 });
+  // Get Adaptive Thresholds (with centralized defaults as fallback)
+  // biasEngine uses VIX.elevated (22) as "high" — triggers bias shift earlier than regime panic (28)
+  const yTh = getAdaptiveThresholds("US10Y", { high: DEFAULTS.US10Y.high, low: DEFAULTS.US10Y.low, mean: DEFAULTS.US10Y.mean });
+  const vTh = getAdaptiveThresholds("VIX", { high: DEFAULTS.VIX.elevated, low: DEFAULTS.VIX.low, mean: DEFAULTS.VIX.mean });
+  const rTh = getAdaptiveThresholds("RealYield", { high: DEFAULTS.RealYield.high, low: DEFAULTS.RealYield.low, mean: DEFAULTS.RealYield.mean });
 
-  const dTh = { dxyHigh: 100.2, dxyLow: 98.8 };
+  const dTh = { dxyHigh: DEFAULTS.DXY.high, dxyLow: DEFAULTS.DXY.low };
   const th = { ...yTh, ...vTh, ...rTh, ...dTh, ...thresholds };
 
   const dxy = macro.DXY?.close ?? 0;
@@ -81,7 +83,21 @@ function buildBias(macro, regimeObj, thresholds = {}) {
     equityBias = `Slight ${seasonal.equity} (Musiman)`;
   }
 
-  return { usdBias, goldBias, equityBias, seasonality: seasonal };
+  // === 6. OIL BIAS (Inflation Proxy & Growth Indicator) ===
+  const oilChange = parseFloat(macro.OIL?.change) || 0;
+  let oilBias = "Netral";
+
+  if (regime.includes("Stagflasi") || (oilChange > 1 && us10y > th.high)) {
+    oilBias = "Bullish";  // Inflasi panas → demand-push / supply-shock
+  } else if (regime.includes("Reflasi") && oilChange > 0) {
+    oilBias = "Bullish";  // Pertumbuhan ekonomi → demand naik
+  } else if (regime.includes("Goncangan") || regime.includes("Kepanikan")) {
+    oilBias = "Bearish";  // Ketakutan resesi → demand destruction
+  } else if (oilChange < -2) {
+    oilBias = "Bearish";  // Momentum turun tajam
+  }
+
+  return { usdBias, goldBias, equityBias, oilBias, seasonality: seasonal };
 }
 
 module.exports = { buildBias };
