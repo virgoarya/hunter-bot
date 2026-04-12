@@ -2,6 +2,7 @@ const axios = require("axios");
 const { EmbedBuilder } = require("discord.js");
 const { fetchLatestTweets } = require("./twitterService");
 const { fetchReutersFinance } = require("./reutersService");
+const { fetchFxstreetNews } = require("./fxstreetService");
 const { postToAI } = require("../utils/aiProxy");
 
 const CHANNEL_ID = process.env.ALERT_CHANNEL_ID; // Target channel for macro analysis broadcast (Alerts)
@@ -224,19 +225,13 @@ async function fetchAndAnalyzeMacroNews() {
   try {
     console.log("🔍 Fetching and analyzing breaking macro news...");
 
-    // 1. Fetch Twitter (KobeissiLetter & RedboxWire)
+    // 1. Fetch Twitter (KobeissiLetter only)
     let twitterNews = [];
     try {
-      const kobeissiTweets = await fetchLatestTweets("KobeissiLetter", "https://t.me/s/TheKobeissiLetter");
-      const redboxTweets = await fetchLatestTweets("RedboxWire", null);
-      
-      const allTweets = [...(kobeissiTweets || []), ...(redboxTweets || [])];
-      
-      if (allTweets.length > 0) {
-        twitterNews = allTweets.map(t => ({
-          // t.link contains the URL which can uniquely identify the source handle in most cases, 
-          // or we just generalize as Twitter Macro Feed
-          source: t.link?.includes("RedboxWire") ? "RedboxWire (X)" : "KobeissiLetter (X)",
+      const tweets = await fetchLatestTweets("KobeissiLetter", "https://t.me/s/TheKobeissiLetter");
+      if (tweets && tweets.length > 0) {
+        twitterNews = tweets.map(t => ({
+          source: "KobeissiLetter (X)",
           title: t.content.substring(0, 100),
           snippet: t.content,
           link: t.link,
@@ -266,9 +261,27 @@ async function fetchAndAnalyzeMacroNews() {
       console.warn("⚠️ Reuters fetch failed in macro analyzer:", err.message);
     }
 
+    // 3. Fetch FXStreet-ID
+    let fxstreetNews = [];
+    try {
+      const fxs = await fetchFxstreetNews();
+      if (fxs && fxs.length > 0) {
+        fxstreetNews = fxs.map(f => ({
+          source: "FXStreet ID",
+          title: f.title,
+          snippet: f.content,
+          link: f.link,
+          date: f.date
+        })).filter(f => isBreakingNews(f.title, f.snippet));
+        console.log(`🌐 FXStreet: ${fxstreetNews.length} breaking news items after filter`);
+      }
+    } catch (err) {
+      console.warn("⚠️ FXStreet fetch failed in macro analyzer:", err.message);
+    }
+
     // Combine and limit to top 1 total (to avoid rate limits)
     // Prioritize by recency: sort by date if available, otherwise by array order
-    const allNews = [...twitterNews, ...reutersNews];
+    const allNews = [...twitterNews, ...reutersNews, ...fxstreetNews];
 
     // FILTER BY RECENCY: Only include news from last 12 hours to ensure "breaking" means fresh
     const RECENCY_HOURS = 12;
