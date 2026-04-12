@@ -4,7 +4,7 @@ const { fetchLatestTweets } = require("./twitterService");
 const { fetchReutersFinance } = require("./reutersService");
 const { postToAI } = require("../utils/aiProxy");
 
-const CHANNEL_ID = "1475983790684766441"; // Target channel for macro analysis broadcast
+const CHANNEL_ID = process.env.ALERT_CHANNEL_ID; // Target channel for macro analysis broadcast (Alerts)
 const CACHE_FILE = require("path").join(__dirname, "../macro_news_analysis_cache.json");
 
 // Cache untuk menghindari duplicate analysis

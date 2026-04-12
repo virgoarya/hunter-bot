@@ -166,6 +166,7 @@ client.once(Events.ClientReady, async () => {
       }
     },
 
+    /*
     // Twitter Updates (Every 10 minutes)
     twitterUpdates: async () => {
       await sendTwitterUpdate(client);
@@ -175,6 +176,7 @@ client.once(Events.ClientReady, async () => {
     reutersUpdates: async () => {
       await sendReutersUpdate(client);
     },
+    */
 
     // Macro News Analysis with Critical Thinking (Every 15 minutes)
     macroNewsAnalysis: async () => {
