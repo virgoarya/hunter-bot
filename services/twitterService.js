@@ -22,24 +22,22 @@ function cleanHtml(html) {
 const CACHE_FILE = path.join(__dirname, "../twitter_cache.json");
 
 // Updated list of Nitter instances (some may be down, we try them in order of reliability)
-const RSS_URLS = [
-    "https://nitter.net/KobeissiLetter/rss",
-    "https://nitter.privacydev.net/KobeissiLetter/rss",
-    "https://nitter.poast.org/KobeissiLetter/rss",
-    "https://nitter.perennialte.ch/KobeissiLetter/rss",
-    "https://nitter.actionsack.com/KobeissiLetter/rss",
-    "https://nitter.weiler.rocks/KobeissiLetter/rss",
-    "https://nitter.cz/KobeissiLetter/rss",
-    "https://nitter.unixfox.eu/KobeissiLetter/rss",
-    "https://nitter.mastodont.cat/KobeissiLetter/rss",
-    "https://nitter.42l.fr/KobeissiLetter/rss"
+const RSS_URL_TEMPLATES = [
+    "https://nitter.net/{handle}/rss",
+    "https://nitter.privacydev.net/{handle}/rss",
+    "https://nitter.poast.org/{handle}/rss",
+    "https://nitter.perennialte.ch/{handle}/rss",
+    "https://nitter.actionsack.com/{handle}/rss",
+    "https://nitter.weiler.rocks/{handle}/rss",
+    "https://nitter.cz/{handle}/rss",
+    "https://nitter.unixfox.eu/{handle}/rss",
+    "https://nitter.mastodont.cat/{handle}/rss",
+    "https://nitter.42l.fr/{handle}/rss"
 ];
 
 // HTTP client with better defaults
 const httpAgent = new (require('http').Agent)({ keepAlive: true });
 const httpsAgent = new (require('https').Agent)({ keepAlive: true, rejectUnauthorized: false });
-
-const TELEGRAM_URL = "https://t.me/s/TheKobeissiLetter";
 
 function loadCache() {
     try {
@@ -49,13 +47,15 @@ function loadCache() {
     } catch (e) {
         console.error("Twitter cache load error:", e.message);
     }
-    return { lastNitterId: null, lastTelegramId: null };
+    return {}; // Dynamic keys instead of hardcoded
 }
 
-async function fetchFromTelegram() {
+async function fetchFromTelegram(telegramUrl) {
+    if (!telegramUrl) return []; // Some handles don't have telegram
+
     try {
-        console.log("✈️ Fetching updates from Telegram...");
-        const response = await axios.get(TELEGRAM_URL, {
+        console.log(`✈️ Fetching updates from Telegram (${telegramUrl})...`);
+        const response = await axios.get(telegramUrl, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             },
@@ -207,33 +207,35 @@ async function translateBatch(tweets) {
     return results;
 }
 
-async function fetchLatestTweets() {
+async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https://t.me/s/TheKobeissiLetter") {
     try {
-        console.log("🐦 Fetching feeds from @KobeissiLetter...");
+        console.log(`🐦 Fetching feeds from @${handle}...`);
         let items = [];
         let source = null;
 
-        // Step 1: Try Telegram first (Fast & Reliable, No Rate Limits)
-        console.log("✈️ Fetching from Telegram first (more reliable)...");
-        try {
-            items = await fetchFromTelegram();
-            if (items.length > 0) {
-                source = "telegram";
-                console.log(`✅ Telegram success: ${items.length} items`);
-            } else {
-                console.warn("⚠️ Telegram returned 0 items");
+        // Step 1: Try Telegram first (Fast & Reliable, No Rate Limits) if provided
+        if (telegramUrl) {
+            console.log(`✈️ Fetching from Telegram first (more reliable)...`);
+            try {
+                items = await fetchFromTelegram(telegramUrl);
+                if (items.length > 0) {
+                    source = "telegram";
+                    console.log(`✅ Telegram success for ${handle}: ${items.length} items`);
+                } else {
+                    console.warn(`⚠️ Telegram returned 0 items for ${handle}`);
+                }
+            } catch (telegramErr) {
+                console.error(`❌ Telegram error for ${handle}:`, telegramErr.message);
             }
-        } catch (telegramErr) {
-            console.error("❌ Telegram error:", telegramErr.message);
         }
 
         // Step 2: Try Nitter Instances as Fallback
         if (items.length === 0) {
-            console.log(`[Twitter] Telegram failed, trying ${RSS_URLS.length} Nitter mirrors...`);
-            for (let i = 0; i < RSS_URLS.length; i++) {
-                const url = RSS_URLS[i];
+            console.log(`[Twitter] Telegram failed or skipped for ${handle}, trying ${RSS_URL_TEMPLATES.length} Nitter mirrors...`);
+            for (let i = 0; i < RSS_URL_TEMPLATES.length; i++) {
+                const url = RSS_URL_TEMPLATES[i].replace("{handle}", handle);
                 try {
-                    console.log(`[Twitter-Retry ${i + 1}/${RSS_URLS.length}] Trying: ${url}`);
+                    console.log(`[Twitter-Retry ${i + 1}/${RSS_URL_TEMPLATES.length}] Trying: ${url}`);
 
                     const response = await axios.get(url, {
                         headers: {
@@ -296,7 +298,7 @@ async function fetchLatestTweets() {
                 }
 
                 // Add delay before trying next mirror (increase delay after each failure)
-                if (i < RSS_URLS.length - 1) {
+                if (i < RSS_URL_TEMPLATES.length - 1) {
                     const delay = Math.min(500 + (i * 200), 2000); // 500ms to 2000ms progressive delay
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
@@ -321,22 +323,22 @@ async function fetchLatestTweets() {
         const cache = loadCache();
         const newTweets = [];
 
-        // Determine which cache ID to use
+        // Determine which cache ID to use dynamically based on handle
         let lastId = null;
         let cacheKey = null;
         if (source === "nitter") {
-            lastId = cache.lastNitterId;
-            cacheKey = "lastNitterId";
+            cacheKey = `lastNitterId_${handle}`;
+            lastId = cache[cacheKey];
         } else if (source === "telegram") {
-            lastId = cache.lastTelegramId;
-            cacheKey = "lastTelegramId";
+            cacheKey = `lastTelegramId_${handle}`;
+            lastId = cache[cacheKey];
         }
 
         // If it's the first time for this source, initialize cache and return nothing
         if (!lastId) {
             cache[cacheKey] = items[0].id;
             saveCache(cache);
-            console.log(`✅ Initialized ${source} cache with ID: ${items[0].id.substring(0, 30)}...`);
+            console.log(`✅ Initialized ${source} cache for ${handle} with ID: ${items[0].id.substring(0, 30)}...`);
             return [];
         }
 

@@ -224,13 +224,19 @@ async function fetchAndAnalyzeMacroNews() {
   try {
     console.log("🔍 Fetching and analyzing breaking macro news...");
 
-    // 1. Fetch Twitter (KobeissiLetter)
+    // 1. Fetch Twitter (KobeissiLetter & RedboxWire)
     let twitterNews = [];
     try {
-      const tweets = await fetchLatestTweets();
-      if (tweets && tweets.length > 0) {
-        twitterNews = tweets.map(t => ({
-          source: "KobeissiLetter (Twitter)",
+      const kobeissiTweets = await fetchLatestTweets("KobeissiLetter", "https://t.me/s/TheKobeissiLetter");
+      const redboxTweets = await fetchLatestTweets("RedboxWire", null);
+      
+      const allTweets = [...(kobeissiTweets || []), ...(redboxTweets || [])];
+      
+      if (allTweets.length > 0) {
+        twitterNews = allTweets.map(t => ({
+          // t.link contains the URL which can uniquely identify the source handle in most cases, 
+          // or we just generalize as Twitter Macro Feed
+          source: t.link?.includes("RedboxWire") ? "RedboxWire (X)" : "KobeissiLetter (X)",
           title: t.content.substring(0, 100),
           snippet: t.content,
           link: t.link,
