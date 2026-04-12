@@ -54,7 +54,7 @@ function loadCache() {
 
 async function fetchFromTelegram() {
     try {
-        console.log("✈️ Nitter failed, falling back to Telegram Scraper...");
+        console.log("✈️ Fetching updates from Telegram...");
         const response = await axios.get(TELEGRAM_URL, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -213,93 +213,93 @@ async function fetchLatestTweets() {
         let items = [];
         let source = null;
 
-        // Step 1: Try Nitter Instances with staggered delays and better error handling
-        console.log(`[Twitter] Trying ${RSS_URLS.length} Nitter mirrors...`);
-        for (let i = 0; i < RSS_URLS.length; i++) {
-            const url = RSS_URLS[i];
-            try {
-                console.log(`[Twitter-Retry ${i + 1}/${RSS_URLS.length}] Trying: ${url}`);
+        // Step 1: Try Telegram first (Fast & Reliable, No Rate Limits)
+        console.log("✈️ Fetching from Telegram first (more reliable)...");
+        try {
+            items = await fetchFromTelegram();
+            if (items.length > 0) {
+                source = "telegram";
+                console.log(`✅ Telegram success: ${items.length} items`);
+            } else {
+                console.warn("⚠️ Telegram returned 0 items");
+            }
+        } catch (telegramErr) {
+            console.error("❌ Telegram error:", telegramErr.message);
+        }
 
-                const response = await axios.get(url, {
-                    headers: {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                        "Accept": "application/rss+xml, application/xml, */*",
-                        "Accept-Language": "en-US,en;q=0.9",
-                        "Referer": "https://nitter.net/"
-                    },
-                    timeout: 8000, // 8 seconds timeout
-                    httpAgent: httpAgent,
-                    httpsAgent: httpsAgent,
-                    maxRedirects: 3,
-                    validateStatus: function (status) {
-                        // Accept 200-299, but we'll handle errors manually
-                        return status >= 200 && status < 300;
-                    }
-                });
+        // Step 2: Try Nitter Instances as Fallback
+        if (items.length === 0) {
+            console.log(`[Twitter] Telegram failed, trying ${RSS_URLS.length} Nitter mirrors...`);
+            for (let i = 0; i < RSS_URLS.length; i++) {
+                const url = RSS_URLS[i];
+                try {
+                    console.log(`[Twitter-Retry ${i + 1}/${RSS_URLS.length}] Trying: ${url}`);
 
-                if (response.status === 200 && response.data) {
-                    const $ = cheerio.load(response.data, { xmlMode: true });
-                    $("item").each((i, el) => {
-                        const rawContent = $(el).find("description").text() || $(el).find("title").text();
-                        const guid = $(el).find("guid").text();
-                        const link = $(el).find("link").text();
-                        if (rawContent && (guid || link)) {
-                            items.push({
-                                id: guid || link,
-                                content: cleanHtml(rawContent),
-                                link: link,
-                                date: $(el).find("pubDate").text()
-                            });
+                    const response = await axios.get(url, {
+                        headers: {
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                            "Accept": "application/rss+xml, application/xml, */*",
+                            "Accept-Language": "en-US,en;q=0.9",
+                            "Referer": "https://nitter.net/"
+                        },
+                        timeout: 8000, // 8 seconds timeout
+                        httpAgent: httpAgent,
+                        httpsAgent: httpsAgent,
+                        maxRedirects: 3,
+                        validateStatus: function (status) {
+                            // Accept 200-299, but we'll handle errors manually
+                            return status >= 200 && status < 300;
                         }
                     });
 
-                    if (items.length > 0) {
-                        source = "nitter";
-                        console.log(`✅ Nitter success [${url}]: ${items.length} items`);
-                        break;
+                    if (response.status === 200 && response.data) {
+                        const $ = cheerio.load(response.data, { xmlMode: true });
+                        $("item").each((i, el) => {
+                            const rawContent = $(el).find("description").text() || $(el).find("title").text();
+                            const guid = $(el).find("guid").text();
+                            const link = $(el).find("link").text();
+                            if (rawContent && (guid || link)) {
+                                items.push({
+                                    id: guid || link,
+                                    content: cleanHtml(rawContent),
+                                    link: link,
+                                    date: $(el).find("pubDate").text()
+                                });
+                            }
+                        });
+
+                        if (items.length > 0) {
+                            source = "nitter";
+                            console.log(`✅ Nitter success [${url}]: ${items.length} items`);
+                            break;
+                        } else {
+                            console.log(`⚠️ Nitter [${url}] returned 0 items (empty RSS)`);
+                        }
                     } else {
-                        console.log(`⚠️ Nitter [${url}] returned 0 items (empty RSS)`);
+                        console.warn(`⚠️ Nitter [${url}] returned status ${response.status}`);
                     }
-                } else {
-                    console.warn(`⚠️ Nitter [${url}] returned status ${response.status}`);
-                }
-            } catch (err) {
-                const status = err.response?.status;
-                const message = err.message;
+                } catch (err) {
+                    const status = err.response?.status;
+                    const message = err.message;
 
-                if (status === 429) {
-                    console.warn(`[Twitter-Retry] Rate limited (429): ${url}`);
-                } else if (status === 403) {
-                    console.warn(`[Twitter-Retry] Forbidden (403): ${url} - instance blocked`);
-                } else if (status === 503) {
-                    console.warn(`[Twitter-Retry] Service Unavailable (503): ${url}`);
-                } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
-                    console.warn(`[Twitter-Retry] Connection failed (${err.code}): ${url}`);
-                } else {
-                    console.warn(`[Twitter-Retry] Error (${message}): ${url}`);
+                    if (status === 429) {
+                        console.warn(`[Twitter-Retry] Rate limited (429): ${url}`);
+                    } else if (status === 403) {
+                        console.warn(`[Twitter-Retry] Forbidden (403): ${url} - instance blocked`);
+                    } else if (status === 503) {
+                        console.warn(`[Twitter-Retry] Service Unavailable (503): ${url}`);
+                    } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
+                        console.warn(`[Twitter-Retry] Connection failed (${err.code}): ${url}`);
+                    } else {
+                        console.warn(`[Twitter-Retry] Error (${message}): ${url}`);
+                    }
                 }
-            }
 
-            // Add delay before trying next mirror (increase delay after each failure)
-            if (i < RSS_URLS.length - 1) {
-                const delay = Math.min(500 + (i * 200), 2000); // 500ms to 2000ms progressive delay
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-
-        // Step 2: Fallback to Telegram if Nitter failed completely
-        if (items.length === 0) {
-            console.log("✈️ All Nitter mirrors failed, activating Telegram fallback...");
-            try {
-                items = await fetchFromTelegram();
-                if (items.length > 0) {
-                    source = "telegram";
-                    console.log(`✅ Telegram fallback success: ${items.length} items`);
-                } else {
-                    console.warn("⚠️ Telegram fallback returned 0 items");
+                // Add delay before trying next mirror (increase delay after each failure)
+                if (i < RSS_URLS.length - 1) {
+                    const delay = Math.min(500 + (i * 200), 2000); // 500ms to 2000ms progressive delay
+                    await new Promise(resolve => setTimeout(resolve, delay));
                 }
-            } catch (telegramErr) {
-                console.error("❌ Telegram fallback error:", telegramErr.message);
             }
         }
 
