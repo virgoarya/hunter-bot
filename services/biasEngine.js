@@ -23,6 +23,11 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   const realYield = macro.RealYield?.close ?? 0;
   const nasdaq = macro.NASDAQ?.close;
 
+  // Real-time Momentum
+  const dxyChange = parseFloat(macro.DXY?.change) || 0;
+  const goldChange = parseFloat(macro.GOLD?.change) || 0;
+  const nasdaqChange = parseFloat(macro.NASDAQ?.change) || 0;
+
   // ON RRP liquidity signal
   const repoData = macro.RepoData;
   const repoChange = repoData && !repoData.error ? parseFloat(repoData.changePercent) || 0 : 0;
@@ -33,8 +38,10 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   // === 1. USD BIAS (Carry vs Safety) ===
   if (us10y > th.high || regime.includes("Kepanikan") || regime.includes("Tekanan")) {
     usdBias = (regime.includes("Kepanikan") || regime.includes("Tekanan")) ? "Strong Bullish" : "Bullish";
+    if (dxyChange < -0.2) usdBias = "Netral / Rotasi"; // Override if DXY is actively dropping
   } else if (us10y < th.low && dxy < th.dxyLow) {
     usdBias = "Bearish";
+    if (dxyChange > 0.2) usdBias = "Netral / Rotasi"; // Override if DXY is rebounding
   }
 
   // === 2. EQUITY BIAS (Growth vs Stress) ===
@@ -43,6 +50,10 @@ function buildBias(macro, regimeObj, thresholds = {}) {
       equityBias = "Bullish";
     } else if (regime.includes("Stagflasi") || regime.includes("Goncangan") || regime.includes("Kepanikan") || vix > th.high) {
       equityBias = "Bearish";
+      // Sinkronisasi dengan price action & liquidity flow
+      if (nasdaqChange > 0 && repoChange < -5) {
+        equityBias = "Netral / Rotasi"; // Risk-on liquidity override overrides structural bearishness
+      }
     }
   } else if (vix > th.high) {
     equityBias = "Bearish";
@@ -51,13 +62,18 @@ function buildBias(macro, regimeObj, thresholds = {}) {
   // === 3. GOLD BIAS (Real Yields & Safe Haven) ===
   const isSafeHavenRegime = regime.includes("Stagflasi") || regime.includes("Goncangan");
   const isUSDStrong = usdBias.includes("Bullish");
+  const isRiskOnFlow = repoChange < -5;
 
   if (realYield < th.low || isSafeHavenRegime) {
     goldBias = "Bullish";
-    if (repoChange < -5) goldBias = "Netral / Rotasi";
+    if (isRiskOnFlow && goldChange < 0) goldBias = "Netral / Rotasi";
   } else if (realYield > th.high || (isUSDStrong && !isSafeHavenRegime)) {
     // USD Kuat + Yield Tinggi = Musuh Emas (prioritas di atas Safe Haven biasa)
     goldBias = isUSDStrong ? "Strong Bearish" : "Bearish";
+    // Sinkronisasi dengan momentum riil (Divergensi)
+    if (goldChange > 0.3) {
+      goldBias = isRiskOnFlow ? "Slight Bullish (Tail-Risk Hedging)" : "Netral / Divergence";
+    }
   } else if (regime.includes("Kepanikan")) {
     goldBias = "Netral / Volatil";
   } else if (repoChange > 5 && !isUSDStrong) {

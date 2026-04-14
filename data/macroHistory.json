@@ -1,22 +1,22 @@
 {
   "snapshots": [
     {
-      "timestamp": "2026-03-21T09:44:49.710Z",
-      "DXY": 99.459,
-      "US10Y": 4.25,
-      "RealYield": 1.88,
-      "VIX": 25.7467,
-      "GOLD": 4493.95,
-      "NASDAQ": 24101.5,
-      "OIL": 98.23,
+      "timestamp": "2026-04-03T21:17:12.092Z",
+      "DXY": 99.98,
+      "US10Y": 4.31,
+      "RealYield": 1.97,
+      "VIX": 24.4806,
+      "GOLD": 4676.3,
+      "NASDAQ": 24129.75,
+      "OIL": 111.54,
       "FFR": 3.64,
-      "DXY_change": 0.362,
-      "US10Y_change": -0.01,
-      "GOLD_change": -3.076,
-      "NASDAQ_change": -2.157,
-      "VIX_change": 8.407,
-      "RepoAmount": 822000000,
-      "RepoChange": 29.04
+      "DXY_change": 0.165,
+      "US10Y_change": -0.02,
+      "GOLD_change": -0.002,
+      "NASDAQ_change": -0.311,
+      "VIX_change": 0.536,
+      "RepoAmount": 327000000,
+      "RepoChange": -84.48
     }
   ]
 }

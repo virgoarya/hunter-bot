@@ -58,6 +58,8 @@ function buildTradingInsight(regime, bias, intent, repoData = null) {
         insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "STRONG BUY / LONG 🚀", emoji: "🟢", reason: getGoldReason("strong_bullish", regimeText, repoSignal) });
     } else if (goldBias === "Bullish") {
         insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "BUY / LONG", emoji: "🟢", reason: getGoldReason("bullish", regimeText, repoSignal) });
+    } else if (goldBias.includes("Tail-Risk Hedging") || goldBias.includes("Divergence")) {
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "ACCUMULATE (HEDGING) 🛡️", emoji: "🟡", reason: "Divergensi terdeteksi: Harga naik meskipun makro menekan. Smart money kemungkinan akumulasi." });
     } else if (goldBias.includes("Slight Bullish")) {
         insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "ACCUMULATE / WATCH 📈", emoji: "🟡", reason: getGoldReason("slight_bullish", regimeText, repoSignal) });
     } else if (goldBias.includes("Strong Bearish")) {
@@ -67,7 +69,7 @@ function buildTradingInsight(regime, bias, intent, repoData = null) {
     } else if (goldBias.includes("Slight Bearish")) {
         insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "REDUCE / WATCH 📉", emoji: "🟠", reason: getGoldReason("slight_bearish", regimeText, repoSignal) });
     } else {
-        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "WAIT / NETRAL", emoji: "⚪", reason: "Belum ada arah yang jelas. Tunggu konfirmasi dari pergerakan real yield dan DXY." });
+        insights.push({ instrument: "🥇 GOLD (XAU/USD)", direction: "WAIT / NETRAL", emoji: "⚪", reason: "Belum ada arah yang jelas. Tunggu konfirmasi lebih lanjut." });
     }
 
     // FOREX (USD pairs)
@@ -76,6 +78,8 @@ function buildTradingInsight(regime, bias, intent, repoData = null) {
         insights.push({ instrument: "💵 USD (DXY)", direction: "USD MENGUAT TAJAM 🚀", emoji: "🟢", reason: getUsdReason("strong_bullish", regimeText, repoSignal) });
     } else if (usdBias.includes("Bullish")) {
         insights.push({ instrument: "💵 USD (DXY)", direction: "USD MENGUAT", emoji: "🟢", reason: getUsdReason("bullish", regimeText, repoSignal) });
+    } else if (usdBias.includes("Rotasi") || usdBias.includes("Divergence")) {
+        insights.push({ instrument: "💵 USD (DXY)", direction: "WAIT / ROTASI 🔄", emoji: "⚪", reason: "Divergensi: Pergerakan harga melawan bias fundamental saat ini." });
     } else if (usdBias.includes("Bearish")) {
         insights.push({ instrument: "💵 USD (DXY)", direction: "USD MELEMAH", emoji: "🔴", reason: getUsdReason("bearish", regimeText, repoSignal) });
     } else {
@@ -90,6 +94,8 @@ function buildTradingInsight(regime, bias, intent, repoData = null) {
         insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "BUY / LONG", emoji: "🟢", reason: getEquityReason("bullish", regimeText, repoSignal) });
     } else if (eqBias.includes("Slight Bullish")) {
         insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "WAIT / ACCUMULATE 📈", emoji: "🟡", reason: getEquityReason("slight_bullish", regimeText, repoSignal) });
+    } else if (eqBias.includes("Rotasi") || eqBias.includes("Divergence")) {
+        insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "WAIT / ROTASI 🔄", emoji: "⚪", reason: "Dinamika kontradiktif antara makro dan aksi harga/likuiditas." });
     } else if (eqBias.includes("Strong Bearish")) {
         insights.push({ instrument: "📈 SAHAM (NASDAQ)", direction: "STRONG SELL / SHORT 📉", emoji: "🔴", reason: getEquityReason("strong_bearish", regimeText, repoSignal) });
     } else if (eqBias.includes("Bearish")) {
