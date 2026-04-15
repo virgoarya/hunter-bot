@@ -7,17 +7,28 @@ const { postToAI } = require("../utils/aiProxy");
 
 const CHANNEL_ID = process.env.ALERT_CHANNEL_ID; // Target channel for macro analysis broadcast (Alerts)
 const CACHE_FILE = require("path").join(__dirname, "../macro_news_analysis_cache.json");
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours TTL
 
 // Cache untuk menghindari duplicate analysis
 let analysisCache = {};
+
+// Rate limiting untuk AI calls
+let lastAICallTime = 0;
+const AI_CALL_INTERVAL = 2000; // Minimum 2 detik antar call
 
 function loadCache() {
   try {
     if (require("fs").existsSync(CACHE_FILE)) {
       const raw = require("fs").readFileSync(CACHE_FILE, "utf8");
       const parsed = JSON.parse(raw);
-      analysisCache = parsed;
-      console.log(`📂 Loaded macro news analysis cache: ${Object.keys(analysisCache).length} entries`);
+      // Filter out expired entries
+      analysisCache = Object.fromEntries(
+        Object.entries(parsed).filter(([key, value]) => {
+          if (!value.timestamp) return true; // Keep if no timestamp
+          return (Date.now() - value.timestamp) < CACHE_TTL;
+        })
+      );
+      console.log(`📂 Loaded macro news analysis cache: ${Object.keys(analysisCache).length} entries (expired removed)`);
     }
   } catch (e) {
     console.warn("Macro news cache load error:", e.message);
@@ -58,28 +69,43 @@ const NEGATIVE_KEYWORDS = [
 function isBreakingNews(title, snippet) {
   const text = (title + " " + (snippet || "")).toLowerCase();
 
-  // Skip jika mengandung kata negatif (bukan berita penting)
+  let score = 0;
+
+  // Penalize jika mengandung kata negatif
   if (NEGATIVE_KEYWORDS.some(k => text.includes(k))) {
-    return false;
+    score -= 1;
   }
 
-  // Harus mengandung setidaknya 2 kata kunci penting
+  // Tambah score untuk setiap kata kunci penting
   const keywordMatches = CRITICAL_KEYWORDS.filter(k => text.includes(k)).length;
-  if (keywordMatches < 1) {
-    return false;
+  score += keywordMatches;
+
+  // Bonus untuk sentiment indicator
+  const sentimentWords = ["up", "down", "rise", "fall", "gain", "loss", "increase", "decrease", "higher", "lower", "strong", "weak", "bullish", "bearish"];
+  if (sentimentWords.some(w => text.includes(w))) {
+    score += 1;
   }
 
-  // Cek apakah ada sentiment indicator
-  const sentimentWords = ["up", "down", "rise", "fall", "gain", "loss", "increase", "decrease", "higher", "lower", "strong", "weak", "bullish", "bearish"];
-  const hasSentiment = sentimentWords.some(w => text.includes(w));
+  // Bonus untuk angka/percentage
+  if (/\d+%?/.test(text)) {
+    score += 1;
+  }
 
-  // Cek apakah ada angka/percentage (sering di berita penting)
-  const hasNumbers = /\d+%?/.test(text);
-
-  return hasSentiment || hasNumbers || keywordMatches >= 2;
+  // Harus score minimal 2 untuk dianggap breaking news
+  return score >= 2;
 }
 
 async function analyzeMacroNewsWithAI(newsItem) {
+  // Input validation
+  if (!newsItem || typeof newsItem !== 'object') {
+    console.warn('Invalid newsItem: not an object or null');
+    return null;
+  }
+  if (!newsItem.title && !newsItem.event && !newsItem.content) {
+    console.warn('Invalid newsItem: missing title, event, or content');
+    return null;
+  }
+
   const cacheKey = `${newsItem.source}:${newsItem.link || newsItem.title}`;
   if (analysisCache[cacheKey]) {
     console.log(`♻️ Using cached analysis for: ${newsItem.title.substring(0, 30)}...`);
@@ -184,8 +210,18 @@ ${marketContext}
 ⚖️ **Confidence:** [High/Med/Low] | ⏱️ **Timeframe:** [Intraday/Short-term/Structural]
 ⚠️ **Risk:** [Invalidation condition]
 
-Keep it concise (max 20 lines). Use professional Indonesian. Be precise, not verbose.
+    Keep it concise (max 20 lines). Use professional Indonesian. Be precise, not verbose.
 `;
+
+    // Rate limiting
+    const now = Date.now();
+    const timeSinceLast = now - lastAICallTime;
+    if (timeSinceLast < AI_CALL_INTERVAL) {
+      const waitTime = AI_CALL_INTERVAL - timeSinceLast;
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before AI call`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    lastAICallTime = Date.now();
 
     const response = await postToAI([
       { role: "system", content: "Kamu adalah Chief Macro Strategist di sebuah hedge fund institusi. Berikan analisis dengan penilaian kritis, jangan follow-the-crowd. Gunakan framework di atas." },
@@ -228,7 +264,7 @@ async function fetchAndAnalyzeMacroNews() {
     // 1. Fetch Twitter (KobeissiLetter only)
     let twitterNews = [];
     try {
-      const tweets = await fetchLatestTweets("KobeissiLetter", "https://t.me/s/TheKobeissiLetter");
+      const tweets = await retryFetch(() => fetchLatestTweets("KobeissiLetter", "https://t.me/s/TheKobeissiLetter"));
       if (tweets && tweets.length > 0) {
         twitterNews = tweets.map(t => ({
           source: "KobeissiLetter (X)",
@@ -246,7 +282,7 @@ async function fetchAndAnalyzeMacroNews() {
     // 2. Fetch Reuters
     let reutersNews = [];
     try {
-      const reuters = await fetchReutersFinance();
+      const reuters = await retryFetch(() => fetchReutersFinance());
       if (reuters && reuters.length > 0) {
         reutersNews = reuters.map(r => ({
           source: "Reuters Business Finance",
@@ -264,7 +300,7 @@ async function fetchAndAnalyzeMacroNews() {
     // 3. Fetch FXStreet-ID
     let fxstreetNews = [];
     try {
-      const fxs = await fetchFxstreetNews();
+      const fxs = await retryFetch(() => fetchFxstreetNews());
       if (fxs && fxs.length > 0) {
         fxstreetNews = fxs.map(f => ({
           source: "FXStreet ID",
@@ -391,6 +427,20 @@ async function broadcastMacroNewsAnalysis() {
 
   } catch (error) {
     console.error("❌ Broadcast macro news error:", error.message);
+  }
+}
+
+// Helper for retry logic
+async function retryFetch(fn, retries = 3, delay = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      console.warn(`🔄 Retry ${i+1}/${retries} failed: ${err.message}, waiting ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
   }
 }
 
