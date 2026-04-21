@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node -c services/correlationEngine.js)",
+      "Bash(node -c services/outlookBroadcast.js)",
+      "Bash(node:*)",
+      "Bash(awk 'NR>=216 && NR<=219' services/cotAnalyzer.js)",
+      "Bash(git checkout:*)",
+      "Bash(grep:*)"
+    ]
+  }
+}

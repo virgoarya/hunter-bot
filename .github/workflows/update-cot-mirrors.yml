@@ -1,0 +1,73 @@
+name: Update COT Mirrors
+
+on:
+  schedule:
+    # Run weekly on Tuesday at 08:00 UTC (15:00 WIB / 8PM Singapore)
+    - cron: '0 8 * * 2'
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      force:
+        description: 'Force update even if no changes'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  update-cot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update CFTC mirror
+        run: node update-cot-mirrors.js --cftc-only
+        env:
+          NODE_ENV: production
+
+      - name: Update MarketBull mirror (manual IP only)
+        run: |
+          echo "Attempting MarketBull update..."
+          node update-cot-mirrors.js --marketbull || echo "MarketBull update failed (expected from cloud runners)"
+        env:
+          NODE_ENV: production
+        continue-on-error: true
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --name-only data/cot_raw.txt data/marketbull_cot.json | grep -q '.'; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.changes.outputs.has_changes == 'true' || github.event.inputs.force == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/cot_raw.txt data/marketbull_cot.json
+          git commit -m "chore: auto-update COT mirrors [skip ci]"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify deployment
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          echo "✅ COT mirrors updated. Railway will auto-deploy on next git push."
