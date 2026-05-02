@@ -22,17 +22,33 @@ async function postToAI(messages, options = {}) {
         }
     };
 
-    // Helper: Call OpenRouter
-    const callOpenRouter = async (model) => {
+    // Helper: Call OpenRouter with Retry Mechanism
+    const callOpenRouter = async (model, retries = 3) => {
         const payload = {
             model: model,
             messages: messages,
             temperature: options.temperature ?? 0.7,
             max_tokens: options.max_tokens || 2000
         };
-        console.log(`📡 [OpenRouter] Calling ${model}...`);
-        const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", payload, orConfig);
-        return response.data.choices[0].message.content;
+        
+        for (let i = 0; i < retries; i++) {
+            console.log(`📡 [OpenRouter] Calling ${model}${i > 0 ? ` (Retry ${i}/${retries - 1})` : ''}...`);
+            try {
+                const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", payload, orConfig);
+                return response.data.choices[0].message.content;
+            } catch (error) {
+                const status = error.response?.status;
+                const isRetryable = status === 429 || status === 502 || status === 503 || status === 504 || error.code === 'ECONNABORTED';
+                
+                if (i === retries - 1 || !isRetryable) {
+                    throw error;
+                }
+                
+                const delay = (i + 1) * 2000; // 2s, 4s backoff
+                console.warn(`⏳ [OpenRouter] Received status ${status}. Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
     };
 
     // Helper: Call Google Gemini (REST)
@@ -122,8 +138,8 @@ async function postToAI(messages, options = {}) {
 
         console.warn(`⚠️ [Primary Failed] Status: ${status ?? 'N/A'} | Error: ${errorMsg} | Timeout: ${isTimeout}`);
 
-        // Always attempt fallback for: 429/402/401/403/5xx OR timeout errors
-        const shouldFallback = isTimeout || status === 429 || status === 402 || status === 401 || status === 403 || status >= 500;
+        // Always attempt fallback for: 404/429/402/401/403/5xx OR timeout errors
+        const shouldFallback = isTimeout || status === 404 || status === 429 || status === 402 || status === 401 || status === 403 || status >= 500;
 
         if (shouldFallback) {
             try {
