@@ -87,17 +87,17 @@ async function registerSlashCommands() {
   try {
     const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log("✅ Slash commands registered");
+    logger.info("✅ Slash commands registered");
   } catch (error) {
-    console.error("❌ Slash command registration error:", error.message);
+    logger.error("❌ Slash command registration error:", { error: error.message });
   }
 }
 
 // === Bot Ready ===
 client.once(Events.ClientReady, async () => {
-  console.log(`\n✅ Hunter Bot v2.1 (Adaptive) logged in as ${client.user.tag}`);
-  console.log(`🤖 AI Model: ${process.env.OPENROUTER_MODEL}`);
-  console.log(`📡 Channels: AI=${process.env.AI_CHANNEL_ID} | Macro=${process.env.MACRO_CHANNEL_ID}\n`);
+  logger.info(`\n✅ Hunter Bot v2.1 (Adaptive) logged in as ${client.user.tag}`);
+  logger.info(`🤖 AI Model: ${process.env.OPENROUTER_MODEL}`);
+  logger.info(`📡 Channels: AI=${process.env.AI_CHANNEL_ID} | Macro=${process.env.MACRO_CHANNEL_ID}\n`);
 
   // Register slash commands
   await registerSlashCommands();
@@ -178,9 +178,9 @@ client.once(Events.ClientReady, async () => {
     },
     */
 
-    // Macro News Analysis with Critical Thinking (Every 15 minutes)
+    // Macro News Analysis with Critical Thinking (Every 2 hours)
     macroNewsAnalysis: async () => {
-      await broadcastMacroNewsAnalysis();
+      await broadcastMacroNewsAnalysis(client);
     },
   });
 });
@@ -255,7 +255,7 @@ client.on("messageCreate", async (message) => {
   const question = message.content;
   const userId = message.author.id;
 
-  console.log(`💬 [${message.author.username}]: ${question}`);
+  logger.info(`💬 [${message.author.username}]: ${question}`);
 
   try {
     // Show typing indicator
@@ -284,17 +284,103 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// === Health Check Server (For Railway/Heroku) ===
+// === REST API Server (Health Check + Dashboard Data) ===
 const http = require("http");
+const { getMacroState } = require("./services/macroData");
+const { classifyRegime } = require("./services/regime");
+const { buildBias } = require("./services/biasEngine");
+const { getSeasonalTendency } = require("./services/seasonality");
 const PORT = process.env.PORT || 8080;
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Hunter Bot is running\n");
+function jsonResponse(res, data) {
+  res.writeHead(200, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET",
+  });
+  res.end(JSON.stringify(data));
+}
+
+const server = http.createServer(async (req, res) => {
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    return res.end();
+  }
+
+  const url = req.url;
+
+  // Health check
+  if (url === "/" || url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end("Hunter Bot is running\n");
+  }
+
+  // === API: Full dashboard data (macro + regime + bias + seasonality) ===
+  if (url === "/api/dashboard") {
+    try {
+      const macro = getMacroState();
+      const regime = macro?.isHealthy ? classifyRegime(macro) : { regime: "Loading...", description: "Menunggu data makro..." };
+      const bias = macro?.isHealthy ? buildBias(macro, regime) : { usdBias: "N/A", goldBias: "N/A", equityBias: "N/A", oilBias: "N/A" };
+      const seasonal = getSeasonalTendency();
+
+      return jsonResponse(res, {
+        regime: regime,
+        bias: bias,
+        seasonality: seasonal,
+        macro: macro?.isHealthy ? {
+          DXY: macro.DXY,
+          US10Y: macro.US10Y,
+          VIX: macro.VIX,
+          GOLD: macro.GOLD,
+          NASDAQ: macro.NASDAQ,
+          OIL: macro.OIL,
+          RealYield: macro.RealYield,
+          FFR: macro.FFR,
+          updatedAt: macro.updatedAt,
+        } : null,
+      });
+    } catch (err) {
+      console.error("API /dashboard error:", err.message);
+      return jsonResponse(res, { error: err.message });
+    }
+  }
+
+  // === API: COT Data ===
+  if (url === "/api/cot") {
+    try {
+      const { fetchCOTData } = require("./services/cotData");
+      const cotResult = await fetchCOTData();
+      // cotResult = { reportDate, contracts: [...] }
+      const contracts = (cotResult?.contracts || []).map(c => ({
+        alias: c.name || c.alias,
+        category: c.category,
+        netPosition: c.speculator?.net?.toLocaleString() || "N/A",
+        commercialNet: c.commercial?.net?.toLocaleString() || "N/A",
+        sentiment: c.sentiment || "NEUTRAL",
+        cotIndex6M: c.marketBull?.cotIndex6M || "N/A",
+        cotIndex36M: c.marketBull?.cotIndex36M || "N/A",
+        chartUrl: c.marketBull?.chartUrl || "",
+        lastUpdate: cotResult?.reportDate || "N/A",
+      }));
+      return jsonResponse(res, { data: contracts, reportDate: cotResult?.reportDate });
+    } catch (err) {
+      console.error("API /cot error:", err.message);
+      return jsonResponse(res, { error: err.message, data: [] });
+    }
+  }
+
+  // 404
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found\n");
 });
 
 server.listen(PORT, () => {
-  console.log(`📡 Health check server listening on port ${PORT}`);
+  logger.info(`📡 Health check server listening on port ${PORT}`);
 });
 
 // === Error Handling & Graceful Shutdown ===
@@ -313,14 +399,14 @@ process.on("uncaughtException", (error) => {
 });
 
 process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully...");
+  logger.info("SIGTERM received, shutting down gracefully...");
   server.close();
   client.destroy();
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
-  console.log("SIGINT received, shutting down gracefully...");
+  logger.info("SIGINT received, shutting down gracefully...");
   server.close();
   client.destroy();
   process.exit(0);

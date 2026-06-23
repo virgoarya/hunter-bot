@@ -1,6 +1,5 @@
-const axios = require("axios");
-const { fetchYahooPrice, fetchMultiYahoo } = require("./yahooFinance");
-const { fetchMultiStooq } = require("./stooqService");
+const logger = require('../utils/logger');
+const { fetchPrices } = require('./providerManager');
 
 // Circuit Breaker for TwelveData (if hit limit, skip for 10 mins)
 let twelveDataCooldown = { active: false, until: 0 };
@@ -22,91 +21,44 @@ const DEFAULT_PAIRS = [
 const PRICE_CACHE_MS = 60 * 1000; // 60 seconds
 let priceCache = { data: null, updatedAt: 0 };
 
-async function fetchFallbacks(symbols) {
-    console.log("🔄 Using Multi-Tier Fallback for Market Prices...");
-
-    const mergedResults = {};
-
-    // Primary: Yahoo Finance
-    try {
-        console.log("📡 Attempting Primary Fallback: Yahoo Finance...");
-        const yahooResults = await fetchMultiYahoo(symbols, 500);
-        for (const [sym, data] of Object.entries(yahooResults)) {
-            if (data && Number.isFinite(data.close)) {
-                mergedResults[sym] = {
-                    price: data.close,
-                    symbol: sym,
-                    source: "Yahoo Finance",
-                    change: data.change,
-                };
-            }
-        }
-        if (Object.keys(mergedResults).length > 0) {
-            console.log(`✅ Yahoo Finance Primary successful (${Object.keys(mergedResults).length} symbols)`);
-        }
-    } catch (err) {
-        console.warn("⚠️ Yahoo Finance Primary failed:", err.message);
-    }
-
-    // Secondary: Stooq for any missing symbols
-    console.log("📡 Attempting Secondary Fallback: Stooq...");
-    const stooqData = await fetchMultiStooq(symbols);
-    for (const [sym, data] of Object.entries(stooqData)) {
-        if (data && Number.isFinite(data.close) && !(sym in mergedResults)) {
-            mergedResults[sym] = {
-                price: data.close,
-                symbol: sym,
-                source: "Stooq",
-                time: data.time,
-            };
-        }
-    }
-    if (Object.keys(mergedResults).length > 0) {
-        console.log(`✅ Stooq Fallback successful (${Object.keys(mergedResults).length} symbols)`);
-    }
-
-    const finalCount = Object.keys(mergedResults).length;
-    if (finalCount > 0) {
-        console.log(`✅ Fallback overall successful (${finalCount} symbols)`);
-    }
-    return mergedResults;
-}
-
+/**
+ * Fallback to TwelveData (primary) then provider manager (secondary).
+ * Provider manager already handles ordered fallback (Yahoo → Stooq → AlphaVantage).
+ */
 async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
     const now = Date.now();
 
-    // 1. Cache Check
+    // 1️⃣ Cache check
     if (!forceRefresh && priceCache.data && (now - priceCache.updatedAt < PRICE_CACHE_MS)) {
+        logger.debug('Returning cached prices', { ageMs: now - priceCache.updatedAt });
         return priceCache.data;
     }
 
-    // 2. TwelveData Attempt (with Circuit Breaker)
+    // 2️⃣ Attempt TwelveData (primary source) unless on cooldown
     let finalResult = null;
     if (!twelveDataCooldown.active || now > twelveDataCooldown.until) {
         try {
             const apiKey = process.env.TWELVE_DATA_API_KEY;
             if (apiKey) {
-                const symbolString = symbols.join(",");
-                const response = await axios.get("https://api.twelvedata.com/price", {
+                const symbolString = symbols.join(',');
+                const response = await require('axios').get('https://api.twelvedata.com/price', {
                     params: { symbol: symbolString, apikey: apiKey },
                     timeout: 8000,
                 });
-
                 const data = response.data;
 
-                // Handle Error / Rate Limit
-                if (data.status === "error" || data.code === 429) {
-                    console.warn(`⚠️ TwelveData Limit/Error: ${data.message || "Unknown error"}. Cooling down for 10 mins.`);
+                // Rate‑limit / error handling
+                if (data.status === 'error' || data.code === 429) {
+                    logger.warn('TwelveData limit/error, entering cooldown', { message: data.message });
                     twelveDataCooldown = { active: true, until: now + 10 * 60 * 1000 };
                 } else {
                     twelveDataCooldown.active = false;
+                    logger.info('TwelveData fetch successful', { symbolsCount: symbols.length });
                     finalResult = {};
-
-                    // Handle single vs multi response
                     if (symbols.length === 1) {
                         const price = parseFloat(data?.price);
                         if (Number.isFinite(price)) {
-                            finalResult[symbols[0]] = { price, symbol: symbols[0], source: "TwelveData" };
+                            finalResult[symbols[0]] = { price, symbol: symbols[0], source: 'TwelveData' };
                         }
                     } else {
                         for (const sym of symbols) {
@@ -114,7 +66,7 @@ async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
                             if (entry?.price) {
                                 const price = parseFloat(entry.price);
                                 if (Number.isFinite(price)) {
-                                    finalResult[sym] = { price, symbol: sym, source: "TwelveData" };
+                                    finalResult[sym] = { price, symbol: sym, source: 'TwelveData' };
                                 }
                             }
                         }
@@ -122,18 +74,18 @@ async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
                 }
             }
         } catch (error) {
-            console.error("TwelveData fetch error:", error.message);
-            // If it's a DNS/Network error, don't necessarily cool down TwelveData specifically, 
-            // but we'll fall back anyway.
+            logger.error('TwelveData fetch error', { error: error.message });
         }
     }
 
-    // 3. Fallback if TwelveData failed or cooled down
+    // 3️⃣ If TwelveData gave nothing, fall back to provider manager (Yahoo → Stooq → AlphaVantage)
     if (!finalResult || Object.keys(finalResult).length === 0) {
-        finalResult = await fetchFallbacks(symbols);
+        logger.info('Falling back to multi‑provider manager');
+        const fallback = await fetchPrices(symbols);
+        finalResult = fallback;
     }
 
-    // 4. Update Cache
+    // 4️⃣ Cache the result
     if (finalResult && Object.keys(finalResult).length > 0) {
         priceCache = { data: finalResult, updatedAt: now };
     }
@@ -145,7 +97,6 @@ function formatPriceTable(prices) {
     if (!prices || Object.keys(prices).length === 0) return "Harga pasar tidak tersedia.";
 
     let table = "💰 **HARGA PASAR REAL-TIME**\n\n";
-
     const aliases = {
         "EUR/USD": "EUR/USD",
         "GBP/USD": "GBP/USD",
@@ -159,13 +110,11 @@ function formatPriceTable(prices) {
         VIX: "📉 VIX Index",
         OIL: "🛢️ CRUDE OIL",
     };
-
     for (const [sym, data] of Object.entries(prices)) {
         const name = aliases[sym] || sym;
-        const sourceMark = data.source === "TwelveData" ? "" : ` (${data.source[0] || "?"})`;
+        const sourceMark = data.source === 'TwelveData' ? '' : ` (${data.source[0] || '?'})`;
         table += `${name}: **${data.price}**${sourceMark}\n`;
     }
-
     return table;
 }
 

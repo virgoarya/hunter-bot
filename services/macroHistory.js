@@ -7,8 +7,9 @@
 
 const fs = require("fs");
 const path = require("path");
+const { resolveDataPath } = require("../utils/dataPath");
 
-const HISTORY_FILE = path.join(__dirname, "../data/macroHistory.json");
+const HISTORY_FILE = resolveDataPath("macroHistory.json");
 const MAX_DAYS = 30; // Simpan data 30 hari terakhir
 
 function loadHistory() {

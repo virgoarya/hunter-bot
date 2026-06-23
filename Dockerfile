@@ -1,17 +1,26 @@
-# Use the official Node.js image.
-FROM node:20
+# Use the official Node.js 20 Alpine image (smaller footprint)
+FROM node:20-alpine
 
-# Set the working directory.
+# Set timezone to WIB
+ENV TZ=Asia/Jakarta
+
+# Set the working directory
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json to the working directory.
+# Copy package files first (leverages Docker layer caching)
 COPY package*.json ./
 
-# Install the application's dependencies.
-RUN npm install
+# Install production dependencies only (faster, smaller image)
+RUN npm ci --omit=dev
 
-# Copy the rest of the application's code.
+# Copy the rest of the application's code
 COPY . .
 
-# Command to run the application.
+# Create persistent data directory
+RUN mkdir -p /mount/data
+
+# Expose health check port
+EXPOSE 8080
+
+# Command to run the application
 CMD ["npm", "start"]

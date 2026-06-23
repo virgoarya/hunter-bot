@@ -2,9 +2,10 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const { fetchBabyPipsCalendar } = require("./babypipsScraper");
+const { resolveRootPath, resolveDataPath } = require("../utils/dataPath");
 
-const CACHE_FILE = path.join(__dirname, "../calendar_cache.json");
-const AV_CACHE_FILE = path.join(__dirname, "../data/av_cache.json");
+const CACHE_FILE = resolveRootPath("calendar_cache.json");
+const AV_CACHE_FILE = resolveDataPath("av_cache.json");
 
 const CACHE_MS = 15 * 60 * 1000;
 const AV_CACHE_MS = 6 * 60 * 60 * 1000; // 6 hours for AlphaVantage to stay under 25/day

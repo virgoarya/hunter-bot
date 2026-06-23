@@ -1,17 +1,15 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const { resolveDataPath } = require("../utils/dataPath");
 
-const HISTORY_FILE = path.join(__dirname, "../data/cot_history.json");
+const HISTORY_FILE = resolveDataPath("cot_history.json");
 
 // In-memory history storage for week-over-week comparison
 let cotHistory = [];
 const MAX_HISTORY = 52; // ~1 year of weekly data
 
-// Ensure data directory exists
-if (!fs.existsSync(path.join(__dirname, "../data"))) {
-    fs.mkdirSync(path.join(__dirname, "../data"));
-}
+// Ensure data directory exists (handled by dataPath.js)
 
 function loadHistory() {
     try {

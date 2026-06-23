@@ -4,9 +4,10 @@ const { fetchLatestTweets } = require("./twitterService");
 const { fetchReutersFinance } = require("./reutersService");
 const { fetchFxstreetNews } = require("./fxstreetService");
 const { postToAI } = require("../utils/aiProxy");
+const { resolveRootPath } = require("../utils/dataPath");
 
 const CHANNEL_ID = process.env.ALERT_CHANNEL_ID; // Target channel for macro analysis broadcast (Alerts)
-const CACHE_FILE = require("path").join(__dirname, "../macro_news_analysis_cache.json");
+const CACHE_FILE = resolveRootPath("macro_news_analysis_cache.json");
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours TTL
 
 // Cache untuk menghindari duplicate analysis
@@ -363,28 +364,23 @@ async function fetchAndAnalyzeMacroNews() {
   }
 }
 
-async function broadcastMacroNewsAnalysis() {
+async function broadcastMacroNewsAnalysis(client) {
   try {
-    const { Client, GatewayIntentBits } = require("discord.js");
-    const client = new Client({
-      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
-    });
-
-    // Token already set in environment
-    await client.login(process.env.DISCORD_TOKEN);
+    if (!client || !client.isReady()) {
+      console.error("❌ broadcastMacroNewsAnalysis: Discord client not ready.");
+      return;
+    }
 
     const analyses = await fetchAndAnalyzeMacroNews();
 
     if (analyses.length === 0) {
       console.log("ℹ️ No macro news analysis to broadcast.");
-      await client.destroy();
       return;
     }
 
     const channel = await client.channels.fetch(CHANNEL_ID);
     if (!channel) {
       console.error("❌ Target channel not found:", CHANNEL_ID);
-      await client.destroy();
       return;
     }
 
@@ -422,7 +418,6 @@ async function broadcastMacroNewsAnalysis() {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
-    await client.destroy();
     console.log("✅ Macro news broadcast completed.");
 
   } catch (error) {

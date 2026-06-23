@@ -2,6 +2,7 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
+const { resolveRootPath } = require("../utils/dataPath");
 
 // Utility: Strip HTML tags, preserve line breaks
 function cleanHtml(html) {
@@ -19,7 +20,7 @@ function cleanHtml(html) {
     return $.text().trim();
 }
 
-const CACHE_FILE = path.join(__dirname, "../twitter_cache.json");
+const CACHE_FILE = resolveRootPath("twitter_cache.json");
 
 // Updated list of Nitter instances (some may be down, we try them in order of reliability)
 const RSS_URL_TEMPLATES = [

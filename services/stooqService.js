@@ -77,7 +77,7 @@ async function fetchStooqPrice(symbol, retryCount = 0) {
             if (status === 404 || error.code === 'ECONNABORTED' || status === 429 || status === 503) {
                 continue;
             }
-            console.error(`Stooq error for ${symbol} (${stooqSym}):`, error.message || status || 'Unknown error');
+            logger.error(`Stooq error for ${symbol} (${stooqSym}):`, error.message || status || 'Unknown error');
         }
     }
     

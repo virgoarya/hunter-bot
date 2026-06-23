@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { fetchMarketBullCOT } = require("./marketBullScraper");
+const { resolveDataPath } = require("../utils/dataPath");
 
 // Contract names to track (map to CFTC report search strings and MarketBull keys)
 const TRACKED_CONTRACTS = [
@@ -18,8 +19,8 @@ const TRACKED_CONTRACTS = [
     { search: "U.S. DOLLAR INDEX", alias: "USD Index", category: "index", marketBullKey: "usd" },
 ];
 
-const CFTC_LOCAL_FILE = path.join(__dirname, "../data/cot_raw.txt");
-const MARKETBULL_MIRROR = path.join(__dirname, "../data/marketbull_cot.json");
+const CFTC_LOCAL_FILE = resolveDataPath("cot_raw.txt");
+const MARKETBULL_MIRROR = resolveDataPath("marketbull_cot.json");
 
 async function fetchCOTData(forceRefresh = false) {
     // Hybrid: CFTC local mirror (net positions) + MarketBull mirror (indices)

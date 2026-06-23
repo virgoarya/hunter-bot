@@ -2,6 +2,7 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
+const { resolveDataPath } = require("../utils/dataPath");
 
 const ASSETS = {
     gold: "https://market-bulls.com/cot-report-gold/",
@@ -16,7 +17,7 @@ const ASSETS = {
     nasdaq: "https://market-bulls.com/cot-report-nasdaq-100/"
 };
 
-const MIRROR_FILE = path.join(__dirname, "../data/marketbull_cot.json");
+const MIRROR_FILE = resolveDataPath("marketbull_cot.json");
 
 async function fetchMarketBullCOT(assetKey) {
     let data = {
