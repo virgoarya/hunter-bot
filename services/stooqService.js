@@ -1,4 +1,5 @@
 const axios = require("axios");
+const logger = require('../utils/logger');
 
 const STOOQ_SYMBOLS = {
     "EUR/USD": "eurusd",
@@ -8,13 +9,13 @@ const STOOQ_SYMBOLS = {
     "USD/CAD": "usdcad",
     "USD/CHF": "usdchf",
     "NZD/USD": "nzdusd",
-    "GOLD": "xauusd",
+    "GOLD": "gc.f",
     "XAU/USD": "xauusd",
     "SILVER": "xagusd",
     "XAG/USD": "xagusd",
     "OIL": "co1",
     "DXY": "usdy",
-    "NASDAQ": "ixic",
+    "NASDAQ": "nq.f",
     "QQQ": "qqq",
     "VIX": "^vix",
 };
