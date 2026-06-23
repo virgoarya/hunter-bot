@@ -1,9 +1,8 @@
 const axios = require("axios");
-const cheerio = require("cheerio"); // Digunakan untuk mem-parse RSS XML juga
+const cheerio = require("cheerio");
 
 const FXSTREET_RSS_URL = "https://www.fxstreet-id.com/rss/news";
 
-// Utility: Membersihkan tag HTML dari konten
 function cleanHtml(html) {
     if (!html) return '';
     const $ = cheerio.load('<div>' + html + '</div>');
@@ -13,13 +12,21 @@ function cleanHtml(html) {
 async function fetchFxstreetNews() {
     try {
         console.log("📰 Fetching feeds from FXStreet-ID (RSS)...");
+        
+        const controllers = new AbortController();
+        const timeoutId = setTimeout(() => controllers.abort(), 15000);
+        
         const response = await axios.get(FXSTREET_RSS_URL, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "application/rss+xml, application/xml, text/xml, */*"
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                "Accept-Language": "en-US,en;q=0.9",
             },
-            timeout: 8000
+            timeout: 15000,
+            signal: controllers.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (response.status !== 200 || !response.data) {
             console.warn(`⚠️ FXStreet RSS returned status ${response.status}`);
@@ -37,7 +44,7 @@ async function fetchFxstreetNews() {
 
             if (title && link) {
                 items.push({
-                    id: link, // Link usually acts as the unique identifier
+                    id: link,
                     title: title,
                     content: description,
                     link: link,
@@ -47,11 +54,15 @@ async function fetchFxstreetNews() {
         });
 
         console.log(`✅ FXStreet RSS success: ${items.length} news items found`);
-        
-        // Return max 10 latest news items (newest first, which is default for RSS usually)
         return items.slice(0, 10);
     } catch (error) {
-        console.error("❌ FXStreet service error:", error.message);
+        if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
+            console.error("❌ FXStreet service timeout");
+        } else if (error.response?.status === 403) {
+            console.error("❌ FXStreet service forbidden (403) - site may have blocked requests");
+        } else {
+            console.error("❌ FXStreet service error:", error.message);
+        }
         return [];
     }
 }

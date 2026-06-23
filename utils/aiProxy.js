@@ -51,54 +51,64 @@ async function postToAI(messages, options = {}) {
         }
     };
 
-    // Helper: Call Google Gemini (REST)
+    // Helper: Call Google Gemini (REST) with retry
     const callGemini = async () => {
         if (!apiKeyGemini) throw new Error("GEMINI_API_KEY_MISSING");
 
-        // Sequence: gemini-flash-latest -> gemini-flash-lite-latest
         const geminiModels = ["gemini-flash-latest", "gemini-flash-lite-latest"];
 
         for (const model of geminiModels) {
-            try {
-                console.log(`📡 [AI] Trying Gemini Model: ${model}...`);
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyGemini}`;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    console.log(`📡 [AI] Trying Gemini Model: ${model}${attempt > 0 ? ` (Retry ${attempt}/3)` : ''}...`);
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyGemini}`;
 
-                const systemMessage = messages.find(m => m.role === "system");
-                const userMessages = messages.filter(m => m.role !== "system");
+                    const systemMessage = messages.find(m => m.role === "system");
+                    const userMessages = messages.filter(m => m.role !== "system");
 
-                const contents = userMessages.map(m => ({
-                    role: m.role === "assistant" ? "model" : "user",
-                    parts: [{ text: m.content }]
-                }));
+                    const contents = userMessages.map(m => ({
+                        role: m.role === "assistant" ? "model" : "user",
+                        parts: [{ text: m.content }]
+                    }));
 
-                const payload = {
-                    contents: contents,
-                    generationConfig: {
-                        temperature: options.temperature ?? 0.7,
-                        maxOutputTokens: options.max_tokens || 2000
-                    }
-                };
-
-                if (systemMessage) {
-                    payload.system_instruction = {
-                        parts: [{ text: systemMessage.content }]
+                    const payload = {
+                        contents: contents,
+                        generationConfig: {
+                            temperature: options.temperature ?? 0.7,
+                            maxOutputTokens: options.max_tokens || 2000
+                        }
                     };
-                }
 
-                const response = await axios.post(url, payload, { timeout: options.timeout || 30000 });
+                    if (systemMessage) {
+                        payload.system_instruction = {
+                            parts: [{ text: systemMessage.content }]
+                        };
+                    }
 
-                if (response.data.candidates && response.data.candidates[0].content) {
-                    return response.data.candidates[0].content.parts[0].text;
+                    const response = await axios.post(url, payload, { timeout: options.timeout || 60000 });
+
+                    if (response.data.candidates && response.data.candidates[0].content) {
+                        return response.data.candidates[0].content.parts[0].text;
+                    }
+                } catch (error) {
+                    const status = error.response?.status;
+                    const errorMsg = error.response?.data?.error?.message || error.message;
+                    console.warn(`⚠️ [Gemini ${model} Failed]: ${errorMsg}`);
+                    
+                    if (attempt < 2 && (status === 429 || status === 503 || error.code === 'ECONNABORTED' || errorMsg?.includes('timeout') || errorMsg?.includes('high demand'))) {
+                        const delay = (attempt + 1) * 5000;
+                        console.log(`⏳ Retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    break;
                 }
-            } catch (error) {
-                console.warn(`⚠️ [Gemini ${model} Failed]:`, error.response?.data?.error?.message || error.message);
-                // Continue to next model in sequence
             }
         }
         throw new Error("All Gemini models failed or hit limit.");
     };
 
-    // Helper: Call Groq
+    // Helper: Call Groq with retry
     const callGroq = async () => {
         const apiKeyGroq = process.env.GROQ_API_KEY;
         if (!apiKeyGroq) throw new Error("GROQ_API_KEY_MISSING");
@@ -114,15 +124,28 @@ async function postToAI(messages, options = {}) {
         };
 
         const config = {
-            timeout: options.timeout || 30000,
+            timeout: options.timeout || 60000,
             headers: {
                 "Authorization": `Bearer ${apiKeyGroq}`,
                 "Content-Type": "application/json"
             }
         };
 
-        const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", payload, config);
-        return response.data.choices[0].message.content;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", payload, config);
+                return response.data.choices[0].message.content;
+            } catch (error) {
+                const status = error.response?.status;
+                if (attempt < 2 && (status === 429 || status === 503 || error.code === 'ECONNABORTED')) {
+                    const delay = (attempt + 1) * 3000;
+                    console.log(`⏳ Groq retry in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                throw error;
+            }
+        }
     };
 
     // --- EXECUTION FLOW ---

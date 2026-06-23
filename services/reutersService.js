@@ -2,8 +2,10 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
+const { resolveRootPath } = require("../utils/dataPath");
+const { postToAI } = require("../utils/aiProxy");
 
-const CACHE_FILE = path.join(__dirname, "../reuters_cache.json");
+const CACHE_FILE = resolveRootPath("reuters_cache.json");
 // Bing News RSS for Reuters Finance items
 const BING_RSS_URL = "https://www.bing.com/news/search?q=site:reuters.com+finance&format=rss";
 
@@ -27,11 +29,10 @@ function saveCache(cache) {
 }
 
 let reutersRateLimitUntil = 0;
-const REUTERS_RETRY_DELAY = 2000; // 2 seconds base delay
+const REUTERS_RETRY_DELAY = 2000;
 
 async function translateAndExpand(title, snippet, retryCount = 0) {
   try {
-    // Check rate limit
     if (Date.now() < reutersRateLimitUntil) {
       const waitMs = reutersRateLimitUntil - Date.now();
       console.log(`⏳ Reuters translation rate limited, waiting ${waitMs}ms...`);
@@ -54,52 +55,25 @@ ATURAN:
 
 Hasil (Indonesian):`;
 
-    const response = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-            model: process.env.OPENROUTER_MODEL,
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.3,
-            max_tokens: 300
-        },
-        {
-            headers: {
-                Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            timeout: 15000 // 15 seconds timeout
-        }
+    const result = await postToAI(
+      [{ role: "user", content: prompt }],
+      { temperature: 0.3, max_tokens: 500, timeout: 30000 }
     );
 
-    // Check for rate limit headers
-    const remaining = response.headers['x-ratelimit-remaining'];
-    const resetTime = response.headers['x-ratelimit-reset'];
-    if (remaining && parseInt(remaining) < 5) {
-      console.warn(`⚠️ OpenRouter rate limit low: ${remaining} remaining`);
-    }
-    if (resetTime) {
-      const resetTimestamp = parseInt(resetTime) * 1000;
-      if (resetTimestamp > Date.now()) {
-        reutersRateLimitUntil = resetTimestamp + 5000; // Add 5s buffer
-      }
-    }
-
-    return response.data.choices[0].message.content.trim();
+    return result.trim();
   } catch (error) {
     console.error("Reuters translation/expansion error:", error.message);
 
-    // Check if it's a rate limit error (429)
-    if (error.response?.status === 429 && retryCount < 3) {
-      const retryAfter = error.response.headers['retry-after'] ?
-          parseInt(error.response.headers['retry-after']) * 1000 :
-          REUTERS_RETRY_DELAY * (retryCount + 1);
-
+    if (retryCount < 3) {
+      const retryAfter = error.response?.headers?.['retry-after'] 
+        ? parseInt(error.response.headers['retry-after']) * 1000 
+        : REUTERS_RETRY_DELAY * (retryCount + 1);
+      
       console.log(`⏳ Rate limited, retrying in ${retryAfter}ms (attempt ${retryCount + 1}/3)...`);
       await new Promise(resolve => setTimeout(resolve, retryAfter));
       return translateAndExpand(title, snippet, retryCount + 1);
     }
 
-    // For other errors, return fallback
     return `${title}\n\n${snippet}`;
   }
 }
