@@ -3,6 +3,7 @@ process.env.TZ = 'Asia/Jakarta';
 
 require("dotenv").config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, Events } = require("discord.js");
+const logger = require('./utils/logger');
 
 const client = new Client({
   intents: [
