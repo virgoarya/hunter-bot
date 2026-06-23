@@ -1,0 +1,10 @@
+{
+  "order": ["yahoo", "stooq", "alphaVantage"],
+  "retryCount": 2,
+  "baseDelayMs": 3000,
+  "circuitBreaker": {
+    "yahoo": { "cooldownMs": 600000 },
+    "stooq": { "cooldownMs": 300000 },
+    "alphaVantage": { "cooldownMs": 86400000 }
+  }
+}
