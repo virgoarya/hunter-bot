@@ -26,17 +26,19 @@ const STOOQ_ALT_SYMBOLS = {
     "GOLD": "xau",
 };
 
-async function fetchStooqPrice(symbol) {
+async function fetchStooqPrice(symbol, retryCount = 0) {
     const primarySym = STOOQ_SYMBOLS[symbol] || symbol.toLowerCase();
+    const altSymbols = STOOQ_ALT_SYMBOLS[symbol] ? [STOOQ_ALT_SYMBOLS[symbol]] : [];
+    const allSymbols = [primarySym, ...altSymbols];
     
-    for (const stooqSym of [primarySym, ...(STOOQ_ALT_SYMBOLS[symbol] ? [STOOQ_ALT_SYMBOLS[symbol]] : [])]) {
+    for (const stooqSym of allSymbols) {
         try {
             const url = `https://stooq.com/q/l/?s=${stooqSym}&f=sd2t2ohlcv&h&e=csv`;
             const response = await axios.get(url, {
                 headers: {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 },
-                timeout: 10000,
+                timeout: 15000,
             });
 
             if (response.status !== 200 || !response.data || response.data.includes("No data found")) {
@@ -71,12 +73,20 @@ async function fetchStooqPrice(symbol) {
                 provider: "Stooq",
             };
         } catch (error) {
-            if (error.response?.status === 404 || error.code === 'ECONNABORTED') {
+            const status = error.response?.status;
+            if (status === 404 || error.code === 'ECONNABORTED' || status === 429 || status === 503) {
                 continue;
             }
-            console.error(`Stooq CSV error for ${symbol} (${stooqSym}):`, error.message);
+            console.error(`Stooq error for ${symbol} (${stooqSym}):`, error.message || status || 'Unknown error');
         }
     }
+    
+    if (retryCount < 1) {
+        console.log(`⏳ Retrying Stooq for ${symbol} in 2000ms...`);
+        await new Promise(r => setTimeout(r, 2000));
+        return fetchStooqPrice(symbol, retryCount + 1);
+    }
+    
     return null;
 }
 
