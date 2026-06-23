@@ -11,6 +11,7 @@ const { analyzeRateOfChange } = require("./rateOfChange");
 const { sendBiasBroadcast } = require("./broadcast");
 const { sendShiftAlert } = require('./shiftAlert');
 const { sendSessionAlert } = require('./sessionAlert');
+const logger = require('../utils/logger');
 
 async function runMacroCycle(client, silent = false) {
 

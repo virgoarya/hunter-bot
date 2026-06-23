@@ -4,6 +4,7 @@ const { fetchYahooPrice } = require("./yahooFinance");
 const { fetchStooqPrice } = require("./stooqService");
 const { fetchRepoData } = require("./repoService");
 
+const logger = require('../utils/logger');
 let macroState = {};
 
 async function fetchMacroIndicator(symbol) {
@@ -16,7 +17,7 @@ async function fetchMacroIndicator(symbol) {
     logger.warn(`⚠️ Stooq failed for macro ${symbol}: ${error.message}`);
   }
 
-  console.log(`⚠️ Falling back to Yahoo Finance for macro ${symbol}...`);
+  logger.warn(`⚠️ Falling back to Yahoo Finance for macro ${symbol}...`);
   const result = await fetchYahooPrice(symbol);
   if (!result) {
     console.warn(`⚠️ Yahoo Finance also failed for ${symbol}`);

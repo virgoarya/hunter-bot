@@ -17,7 +17,7 @@ const STOOQ_SYMBOLS = {
     "DXY": "usdy",
     "NASDAQ": "nq.f",
     "QQQ": "qqq",
-    "VIX": "^vix",
+    "VIX": "vix",
 };
 
 const STOOQ_ALT_SYMBOLS = {
@@ -83,7 +83,7 @@ async function fetchStooqPrice(symbol, retryCount = 0) {
     }
     
     if (retryCount < 1) {
-        console.log(`⏳ Retrying Stooq for ${symbol} in 2000ms...`);
+        logger.warn(`⏳ Retrying Stooq for ${symbol} in 2000ms...`);
         await new Promise(r => setTimeout(r, 2000));
         return fetchStooqPrice(symbol, retryCount + 1);
     }
