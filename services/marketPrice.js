@@ -25,50 +25,51 @@ let priceCache = { data: null, updatedAt: 0 };
 async function fetchFallbacks(symbols) {
     console.log("🔄 Using Multi-Tier Fallback for Market Prices...");
 
-    // 1. Primary Fallback: Stooq (Up-to-date preference)
-    try {
-        console.log("📡 Attempting Primary Fallback: Stooq...");
-        const stooqData = await fetchMultiStooq(symbols);
-        const stooqResults = {};
+    const mergedResults = {};
 
-        for (const [sym, data] of Object.entries(stooqData)) {
+    // Primary: Yahoo Finance
+    try {
+        console.log("📡 Attempting Primary Fallback: Yahoo Finance...");
+        const yahooResults = await fetchMultiYahoo(symbols, 500);
+        for (const [sym, data] of Object.entries(yahooResults)) {
             if (data && Number.isFinite(data.close)) {
-                stooqResults[sym] = {
+                mergedResults[sym] = {
                     price: data.close,
                     symbol: sym,
-                    source: "Stooq",
-                    time: data.time
+                    source: "Yahoo Finance",
+                    change: data.change,
                 };
             }
         }
-
-        if (Object.keys(stooqResults).length > 0) {
-            console.log(`✅ Stooq Fallback successful (${Object.keys(stooqResults).length} symbols)`);
-            return stooqResults;
+        if (Object.keys(mergedResults).length > 0) {
+            console.log(`✅ Yahoo Finance Primary successful (${Object.keys(mergedResults).length} symbols)`);
         }
     } catch (err) {
-        console.warn("⚠️ Stooq Fallback failed:", err.message);
+        console.warn("⚠️ Yahoo Finance Primary failed:", err.message);
     }
 
-    // 2. Secondary Fallback: Yahoo Finance (Resilience)
-    console.log("📡 Attempting Secondary Fallback: Yahoo Finance...");
-    const yahooResults = await fetchMultiYahoo(symbols, 500);
-    const filteredResults = {};
-    for (const [sym, data] of Object.entries(yahooResults)) {
-        if (data && Number.isFinite(data.close)) {
-            filteredResults[sym] = {
+    // Secondary: Stooq for any missing symbols
+    console.log("📡 Attempting Secondary Fallback: Stooq...");
+    const stooqData = await fetchMultiStooq(symbols);
+    for (const [sym, data] of Object.entries(stooqData)) {
+        if (data && Number.isFinite(data.close) && !(sym in mergedResults)) {
+            mergedResults[sym] = {
                 price: data.close,
                 symbol: sym,
-                source: "Yahoo Finance",
-                change: data.change
+                source: "Stooq",
+                time: data.time,
             };
         }
     }
-    
-    if (Object.keys(filteredResults).length > 0) {
-        console.log(`✅ Yahoo Finance Fallback successful (${Object.keys(filteredResults).length} symbols)`);
+    if (Object.keys(mergedResults).length > 0) {
+        console.log(`✅ Stooq Fallback successful (${Object.keys(mergedResults).length} symbols)`);
     }
-    return filteredResults;
+
+    const finalCount = Object.keys(mergedResults).length;
+    if (finalCount > 0) {
+        console.log(`✅ Fallback overall successful (${finalCount} symbols)`);
+    }
+    return mergedResults;
 }
 
 async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
