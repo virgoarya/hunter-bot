@@ -53,7 +53,7 @@ const YAHOO_RETRY_SYMBOLS = {
     "NASDAQ": "Nasdaq 100",
 };
 
-async function fetchYahooPrice(symbol) {
+async function fetchYahooPrice(symbol, retryCount = 0) {
     const primarySym = YAHOO_SYMBOLS[symbol] || symbol;
     const altSymbols = YAHOO_ALT_SYMBOLS[symbol] || [];
     const allSymbols = [primarySym, ...altSymbols];
@@ -65,7 +65,7 @@ async function fetchYahooPrice(symbol) {
                 headers: {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 },
-                timeout: 10000,
+                timeout: 15000,
             });
 
             const result = response.data?.chart?.result?.[0];
@@ -88,19 +88,26 @@ async function fetchYahooPrice(symbol) {
                 provider: "Yahoo Finance",
             };
         } catch (error) {
-            if (error.response?.status === 404 || error.code === 'ECONNABORTED') {
+            const status = error.response?.status;
+            const errorMsg = error.message || (error.response ? `HTTP ${status}` : 'Network error');
+            if (status === 404 || error.code === 'ECONNABORTED' || status === 429 || status === 503 || !error.response) {
                 continue;
             }
-            console.warn(`⚠️ Yahoo Finance error for ${symbol} (${yahooSym}): ${error.message}`);
+            console.warn(`⚠️ Yahoo Finance error for ${symbol} (${yahooSym}): ${errorMsg}`);
         }
     }
+    
+    if (retryCount < 2) {
+        const delay = (retryCount + 1) * 3000;
+        console.log(`⏳ Retrying Yahoo Finance for ${symbol} in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        return fetchYahooPrice(symbol, retryCount + 1);
+    }
+    
     return null;
 }
 
-/**
- * Fetch multiple symbols from Yahoo Finance with small delay
- */
-async function fetchMultiYahoo(symbols, delayMs = 200) {
+async function fetchMultiYahoo(symbols, delayMs = 500) {
     const results = {};
     for (const symbol of symbols) {
         const data = await fetchYahooPrice(symbol);

@@ -17,7 +17,11 @@ async function fetchMacroIndicator(symbol) {
   }
 
   console.log(`⚠️ Falling back to Yahoo Finance for macro ${symbol}...`);
-  return await fetchYahooPrice(symbol);
+  const result = await fetchYahooPrice(symbol);
+  if (!result) {
+    console.warn(`⚠️ Yahoo Finance also failed for ${symbol}`);
+  }
+  return result;
 }
 
 async function updateMacroData() {

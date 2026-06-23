@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { fetchYahooPrice } = require("./yahooFinance");
+const { fetchYahooPrice, fetchMultiYahoo } = require("./yahooFinance");
 const { fetchMultiStooq } = require("./stooqService");
 
 // Circuit Breaker for TwelveData (if hit limit, skip for 10 mins)
@@ -52,25 +52,23 @@ async function fetchFallbacks(symbols) {
 
     // 2. Secondary Fallback: Yahoo Finance (Resilience)
     console.log("📡 Attempting Secondary Fallback: Yahoo Finance...");
-    const yahooResults = {};
-    for (const sym of symbols) {
-        try {
-            const data = await fetchYahooPrice(sym);
-            if (data && Number.isFinite(data.close)) {
-                yahooResults[sym] = {
-                    price: data.close,
-                    symbol: sym,
-                    source: "Yahoo Finance",
-                    change: data.change
-                };
-            }
-        } catch (error) {
-            console.error(`Yahoo fallback error for ${sym}:`, error.message);
+    const yahooResults = await fetchMultiYahoo(symbols, 500);
+    const filteredResults = {};
+    for (const [sym, data] of Object.entries(yahooResults)) {
+        if (data && Number.isFinite(data.close)) {
+            filteredResults[sym] = {
+                price: data.close,
+                symbol: sym,
+                source: "Yahoo Finance",
+                change: data.change
+            };
         }
-        await new Promise(r => setTimeout(r, 100));
     }
-
-    return yahooResults;
+    
+    if (Object.keys(filteredResults).length > 0) {
+        console.log(`✅ Yahoo Finance Fallback successful (${Object.keys(filteredResults).length} symbols)`);
+    }
+    return filteredResults;
 }
 
 async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
