@@ -300,6 +300,7 @@ DETAIL INSTRUMEN:
 - XAU/USD (Gold): ${state?.GOLD?.close ?? "N/A"}
 - WTI OIL: ${state?.OIL?.close ?? "N/A"}
 - US10Y: ${state?.US10Y?.close ?? "N/A"}%
+- Real Yield: ${state?.RealYield?.close ?? "N/A"}%
 - FED FUNDS RATE (FFR): ${state?.FFR?.close ?? "N/A"}%
 - VIX: ${state?.VIX ? parseFloat(state.VIX.close).toFixed(2) : "N/A"}
 ${flowContext}

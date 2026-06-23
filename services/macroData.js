@@ -13,7 +13,7 @@ async function fetchMacroIndicator(symbol) {
       return stooqData;
     }
   } catch (error) {
-    console.warn(`⚠️ Stooq failed for macro ${symbol}: ${error.message}`);
+    logger.warn(`⚠️ Stooq failed for macro ${symbol}: ${error.message}`);
   }
 
   console.log(`⚠️ Falling back to Yahoo Finance for macro ${symbol}...`);
