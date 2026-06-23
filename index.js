@@ -188,9 +188,28 @@ client.once(Events.ClientReady, async () => {
 
 // === Slash Command Handler ===
 client.on("interactionCreate", async (interaction) => {
+  // Guard against non‑chat commands or already‑handled interactions
   if (!interaction.isChatInputCommand()) return;
+  if (interaction.replied) {
+    logger.warn('Interaction already replied', { interactionId: interaction.id });
+    return;
+  }
+  // Defer reply safely – ignore Unknown interaction (10062)
+  if (!interaction.deferred) {
+    try {
+      await interaction.deferReply();
+    } catch (e) {
+      // If the interaction has already been responded to or is invalid, Discord returns code 10062.
+      if (e?.code === 10062) {
+        logger.warn('Unknown interaction on deferReply, likely already handled', { interactionId: interaction.id });
+        // Continue without deferring; we may still send a follow‑up later.
+      } else {
+        logger.error('Failed to defer reply', { error: e });
+        throw e;
+      }
+    }
+  }
 
-  await interaction.deferReply();
 
   try {
     switch (interaction.commandName) {
