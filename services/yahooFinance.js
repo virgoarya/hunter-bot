@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 
 /**
@@ -93,13 +94,13 @@ async function fetchYahooPrice(symbol, retryCount = 0) {
             if (status === 404 || error.code === 'ECONNABORTED' || status === 429 || status === 503 || !error.response) {
                 continue;
             }
-            console.warn(`⚠️ Yahoo Finance error for ${symbol} (${yahooSym}): ${errorMsg}`);
+            logger.warn(`⚠️ Yahoo Finance error for ${symbol} (${yahooSym}): ${errorMsg}`);
         }
     }
     
     if (retryCount < 2) {
         const delay = (retryCount + 1) * 3000;
-        console.log(`⏳ Retrying Yahoo Finance for ${symbol} in ${delay}ms...`);
+        logger.info(`⏳ Retrying Yahoo Finance for ${symbol} in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         return fetchYahooPrice(symbol, retryCount + 1);
     }
@@ -119,4 +120,10 @@ async function fetchMultiYahoo(symbols, delayMs = 500) {
     return results;
 }
 
-module.exports = { fetchYahooPrice, fetchMultiYahoo, YAHOO_SYMBOLS };
+// Export a generic fetchMulti for provider manager compatibility
+async function fetchMulti(symbols, _retryCount) {
+  // retryCount not used – Yahoo fetch already handles its own retries
+  return fetchMultiYahoo(symbols);
+}
+
+module.exports = { fetchYahooPrice, fetchMultiYahoo, YAHOO_SYMBOLS, fetchMulti };
