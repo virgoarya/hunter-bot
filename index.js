@@ -186,10 +186,23 @@ client.once(Events.ClientReady, async () => {
   });
 });
 
+// Track recently handled interactions to prevent duplicates
+const recentInteractions = new Set();
+const INTERACTION_TTL = 5000; // 5 seconds
+
 // === Slash Command Handler ===
 client.on("interactionCreate", async (interaction) => {
   // Guard against non‑chat commands or already‑handled interactions
   if (!interaction.isChatInputCommand()) return;
+  
+  const interactionKey = `${interaction.id}-${interaction.createdTimestamp}`;
+  if (recentInteractions.has(interactionKey)) {
+    logger.warn('Interaction already handled recently', { interactionId: interaction.id });
+    return;
+  }
+  recentInteractions.add(interactionKey);
+  setTimeout(() => recentInteractions.delete(interactionKey), INTERACTION_TTL);
+  
   if (interaction.replied) {
     logger.warn('Interaction already replied', { interactionId: interaction.id });
     return;
