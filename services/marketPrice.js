@@ -90,7 +90,17 @@ async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
         priceCache = { data: finalResult, updatedAt: now };
     }
 
-    return finalResult;
+    // Normalize provider-specific fields to a common 'price' property
+  // If the provider returned 'close' (Yahoo, Stooq, etc.), use it as price
+  if (finalResult && typeof finalResult === 'object') {
+    for (const sym of Object.keys(finalResult)) {
+      const entry = finalResult[sym];
+      if (entry && entry.price === undefined && entry.close !== undefined) {
+        entry.price = entry.close;
+      }
+    }
+  }
+  return finalResult;
 }
 
 function formatPriceTable(prices) {
