@@ -1,9 +1,10 @@
 const { fetchFinnhubPrice } = require('./finnhub');
 // TwelveData support removed in favor of Stooq (no API key needed)
 const { fetchStooqPrice } = require('./stooqService');
+const { fetchPrices } = require('./providerManager');
 const logger = require('../utils/logger');
 
-// Circuit breaker tracks failures per provider
+// Circuit breaker tracks failures per provider (Finnhub & Stooq)
 const circuit = {
   finnhub: { failures: 0, lastFail: 0 },
   stooq: { failures: 0, lastFail: 0 },
@@ -32,6 +33,7 @@ function resetFailure(provider) {
  * Unified price fetcher that attempts providers in order:
  *   1️⃣ Finnhub (free tier)
  *   2️⃣ Stooq (free, no API key required)
+ *   3️⃣ Provider manager fallback (Yahoo → Stooq → AlphaVantage)
  *
  * Returns an object compatible with existing callers:
  *   { symbol, close, previousClose, change, provider }
@@ -50,7 +52,7 @@ async function fetchPrice(symbol) {
     logger.warn(`Skipping Finnhub for ${symbol} due to circuit‑breaker`);
   }
 
-  // Fall back to Stooq
+  // Fall back to Stooq directly
   if (!shouldSkip('stooq')) {
     const data = await fetchStooqPrice(symbol);
     if (data) {
@@ -66,6 +68,24 @@ async function fetchPrice(symbol) {
     recordFailure('stooq');
   } else {
     logger.warn(`Skipping Stooq for ${symbol} due to circuit‑breaker`);
+  }
+
+  // If both Finnhub and Stooq failed, use the central provider manager as a last resort
+  try {
+    const result = await fetchPrices([symbol]);
+    const entry = result[symbol];
+    if (entry) {
+      // Ensure the result has the expected shape
+      return {
+        symbol,
+        close: entry.price || entry.close,
+        previousClose: entry.previousClose || entry.open,
+        change: entry.change,
+        provider: entry.source || 'ProviderManager',
+      };
+    }
+  } catch (e) {
+    logger.error('Provider manager fallback error', { error: e.message });
   }
 
   logger.warn(`All price providers failed for ${symbol}`);

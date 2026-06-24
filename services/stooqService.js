@@ -103,4 +103,4 @@ async function fetchMultiStooq(symbols, delayMs = 300) {
     return results;
 }
 
-module.exports = { fetchStooqPrice, fetchMultiStooq, STOOQ_SYMBOLS };
+module.exports = { fetchStooqPrice, fetchMultiStooq, fetchMulti: fetchMultiStooq, STOOQ_SYMBOLS };
