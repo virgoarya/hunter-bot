@@ -1,4 +1,4 @@
-const logger = require('./logger');
+// Simple logger without external dependency
 /**
  * Simple logger with level support. In production you can replace this with a library like pino or winston.
  */
@@ -20,7 +20,7 @@ function format(msg, meta) {
 
 module.exports = {
   debug: (msg, meta) => { if (shouldLog('debug')) console.debug('[DEBUG]', format(msg, meta)); },
-  info:  (msg, meta) => { if (shouldLog('info'))  logger.info('[INFO]',  format(msg, meta)); },
-  warn:  (msg, meta) => { if (shouldLog('warn'))  logger.warn('[WARN]',  format(msg, meta)); },
-  error: (msg, meta) => { if (shouldLog('error')) logger.error('[ERROR]', format(msg, meta)); },
+  info:  (msg, meta) => { if (shouldLog('info'))  console.info('[INFO]',  format(msg, meta)); },
+  warn:  (msg, meta) => { if (shouldLog('warn'))  console.warn('[WARN]',  format(msg, meta)); },
+  error: (msg, meta) => { if (shouldLog('error')) console.error('[ERROR]', format(msg, meta)); },
 };
