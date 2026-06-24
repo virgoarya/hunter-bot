@@ -11,14 +11,10 @@ const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
 
 // Load provider modules (must export fetchMulti(symbols, retryCount))
 const providers = {
+  fmp: require('./fmpService'),
   yahoo: require('./yahooFinance'),
   stooq: require('./stooqService'),
-  alphaVantage: require('./alphaVantage'),
 };
-// Omit AlphaVantage if API key is missing to avoid noisy errors
-if (!process.env.ALPHA_VANTAGE_KEY) {
-  delete providers.alphaVantage;
-}
 
 
 // Circuit‑breaker state (in‑memory)
@@ -29,11 +25,12 @@ for (const name of Object.keys(providers)) {
 
 /** Simple exponential back‑off with jitter */
 async function withRetry(fn, attempts = cfg.retryCount, base = cfg.baseDelayMs) {
-  for (let i = 0; i < attempts; i++) {
+  const maxAttempts = Math.max(1, attempts);
+  for (let i = 0; i < maxAttempts; i++) {
     try {
       return await fn();
     } catch (e) {
-      if (i === attempts - 1) throw e;
+      if (i === maxAttempts - 1) throw e;
       const jitter = Math.random() * 500;
       const delay = base * Math.pow(2, i) + jitter;
       logger.warn('Retrying after delay', { attempt: i + 1, delay, error: e.message });
