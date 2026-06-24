@@ -263,7 +263,15 @@ client.on("interactionCreate", async (interaction) => {
     }
   } catch (error) {
     logger.error("Slash command error:", error);
-    await interaction.editReply("⚠️ Terjadi kesalahan saat memproses command.");
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: "⚠️ Terjadi kesalahan saat memproses command." });
+      } else {
+        await interaction.reply({ content: "⚠️ Terjadi kesalahan saat memproses command." });
+      }
+    } catch (e) {
+      logger.error("Failed to send error reply:", e);
+    }
   }
 });
 
