@@ -34,9 +34,9 @@ async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
         return priceCache.data;
     }
 
-    // Fetch with 10-second timeout
+    // Fetch with 30-second timeout
     const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Price fetch timeout')), 10000)
+        setTimeout(() => reject(new Error('Price fetch timeout')), 30000)
     );
     const result = await Promise.race([fetchPrices(symbols), timeoutPromise]).catch((e) => {
         logger.error('Price fetch failed:', e.message);
