@@ -37,7 +37,7 @@ function parsePair(sym) {
  * Returns null on any non‑recoverable error (rate limit, unknown symbol, etc.).
  */
 async function fetchAlphaPrice(symbol) {
-  const apiKey = process.env.ALPHA_VANTAGE_KEY;
+  const apiKey = process.env.ALPHA_VANTAGE_KEY || process.env.ALPHA_VANTAGE_API_KEY;
   if (!apiKey) {
     logger.error('AlphaVantage API key not set (ALPHA_VANTAGE_KEY)');
     return null;
