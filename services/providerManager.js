@@ -57,8 +57,18 @@ async function fetchPrices(symbols) {
     try {
       const data = await withRetry(() => provider.fetchMulti(symbols, cfg.retryCount));
       for (const [sym, info] of Object.entries(data)) {
-        if (info && Number.isFinite(info.price) && !(sym in merged)) {
-          merged[sym] = { ...info, source: name.charAt(0).toUpperCase() + name.slice(1) };
+        if (info && !(sym in merged)) {
+          // Prefer explicit `price`, otherwise fall back to `close`
+          const priceVal = Number.isFinite(info.price)
+            ? info.price
+            : Number.isFinite(info.close)
+            ? info.close
+            : undefined;
+          if (priceVal !== undefined) {
+            const mergedInfo = { ...info, source: name.charAt(0).toUpperCase() + name.slice(1) };
+            mergedInfo.price = priceVal;
+            merged[sym] = mergedInfo;
+          }
         }
       }
       // break early if we already have all symbols
