@@ -35,18 +35,28 @@ async function fetchTwelveDataPrice(symbol) {
   }
   try {
     const tdSymbol = TWELVE_SYMBOLS[symbol] || symbol;
-    const resp = await axios.get('https://api.twelvedata.com/time_series', {
-      params: { symbol: tdSymbol, interval: '1min', apikey: apiKey },
+    // Use the generic /quote endpoint for real‑time price (works for indices, FX, commodities)
+    const resp = await axios.get('https://api.twelvedata.com/quote', {
+      params: { symbol: tdSymbol, apikey: apiKey },
       timeout: 10000,
     });
     const data = resp.data;
-    if (!data || data.status === 'error' || !data.values || !data.values.length) {
-      logger.warn(`TwelveData no data for ${symbol}`);
+    if (!data || data.status === 'error') {
+      logger.warn(`TwelveData no price data for ${symbol}`);
       return null;
     }
-    const latest = data.values[0];
-    const close = parseFloat(latest.close);
-    const previousClose = parseFloat(latest.prev_close) || close;
+    let close, previousClose;
+    if (data.price !== undefined) {
+      close = parseFloat(data.price);
+      previousClose = parseFloat(data.prev_close) || close;
+    } else if (data.values && data.values.length) {
+      const latest = data.values[0];
+      close = parseFloat(latest.close);
+      previousClose = parseFloat(latest.prev_close) || close;
+    } else {
+      logger.warn(`TwelveData no price data for ${symbol}`);
+      return null;
+    }
     const change = previousClose ? (((close - previousClose) / previousClose) * 100).toFixed(3) : '0.000';
     return { symbol, close, previousClose, change, provider: 'TwelveData' };
   } catch (e) {
