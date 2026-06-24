@@ -7,6 +7,26 @@ const logger = require('../utils/logger');
  *   { symbol, close, previousClose, change, provider: 'TwelveData' }
  * Handles both forex (e.g., EUR/USD) and commodity/index symbols.
  */
+// Mapping symbols to TwelveData expected tickers
+const TWELVE_SYMBOLS = {
+  "EUR/USD": "EURUSD",
+  "GBP/USD": "GBPUSD",
+  "USD/JPY": "USDJPY",
+  "AUD/USD": "AUDUSD",
+  "USD/CAD": "USDCAD",
+  "USD/CHF": "USDCHF",
+  "NZD/USD": "NZDUSD",
+  "GOLD": "XAUUSD", // Gold spot
+  "XAU/USD": "XAUUSD",
+  "SILVER": "XAGUSD",
+  "XAG/USD": "XAGUSD",
+  "OIL": "OIL", // Crude Oil future (works as OIL)
+  "DXY": "DXY",
+  "NASDAQ": "IXIC", // Nasdaq Composite
+  "VIX": "VIX",
+  // Add more mappings as needed
+};
+
 async function fetchTwelveDataPrice(symbol) {
   const apiKey = process.env.TWELVE_DATA_API_KEY;
   if (!apiKey) {
@@ -14,8 +34,9 @@ async function fetchTwelveDataPrice(symbol) {
     return null;
   }
   try {
+    const tdSymbol = TWELVE_SYMBOLS[symbol] || symbol;
     const resp = await axios.get('https://api.twelvedata.com/time_series', {
-      params: { symbol, interval: '1min', apikey: apiKey },
+      params: { symbol: tdSymbol, interval: '1min', apikey: apiKey },
       timeout: 10000,
     });
     const data = resp.data;
