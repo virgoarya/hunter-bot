@@ -82,13 +82,7 @@ async function fetchStooqPrice(symbol, retryCount = 0) {
         }
     }
     
-if (retryCount < 1) {
-        logger.warn(`⏳ Retrying Stooq for ${symbol} in 500ms...`);
-        await new Promise(r => setTimeout(r, 500));
-        return fetchStooqPrice(symbol, retryCount + 1);
-      }
-    
-    return null;
+return null;
 }
 
 async function fetchMultiStooq(symbols, delayMs = 300) {

@@ -1,16 +1,11 @@
 const logger = require('../utils/logger');
 const { fetchPrices } = require('./providerManager');
 
-// Default symbol pairs to fetch
+// Default symbol pairs to fetch (prioritized list)
 const DEFAULT_PAIRS = [
     "EUR/USD",
     "GBP/USD",
-    "USD/JPY",
-    "AUD/USD",
-    "USD/CAD",
     "XAU/USD",
-    "XAG/USD",
-    "DXY",
     "NASDAQ",
     "VIX",
     "OIL",
@@ -34,9 +29,9 @@ async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
         return priceCache.data;
     }
 
-    // Fetch with 30-second timeout
+    // Fetch with 15-second timeout
     const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Price fetch timeout')), 30000)
+        setTimeout(() => reject(new Error('Price fetch timeout')), 15000)
     );
     const result = await Promise.race([fetchPrices(symbols), timeoutPromise]).catch((e) => {
         logger.error('Price fetch failed:', e.message);

@@ -49,10 +49,7 @@ const YAHOO_ALT_SYMBOLS = {
     "GOLD": ["GC=F", "XAU=F"],
 };
 
-const YAHOO_RETRY_SYMBOLS = {
-    "DXY": "Dollar Index",
-    "NASDAQ": "Nasdaq 100",
-};
+const YAHOO_RETRY_SYMBOLS = {};
 
 async function fetchYahooPrice(symbol, retryCount = 0) {
     const primarySym = YAHOO_SYMBOLS[symbol] || symbol;
@@ -98,14 +95,7 @@ async function fetchYahooPrice(symbol, retryCount = 0) {
         }
     }
     
-if (retryCount < 2 && YAHOO_RETRY_SYMBOLS[symbol]) {
-        const delay = (retryCount + 1) * 500;
-        logger.info(`⏳ Retrying Yahoo Finance for ${symbol} in ${delay}ms...`);
-        await new Promise(r => setTimeout(r, delay));
-        return fetchYahooPrice(symbol, retryCount + 1);
-      }
-      
-      return null;
+return null;
 }
 
 async function fetchMultiYahoo(symbols, delayMs = 500) {

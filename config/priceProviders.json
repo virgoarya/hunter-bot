@@ -1,6 +1,6 @@
 {
   "order": ["yahoo", "stooq"],
-  "retryCount": 1,
+  "retryCount": 0,
   "baseDelayMs": 3000,
   "circuitBreaker": {
     "yahoo": { "cooldownMs": 600000 },
