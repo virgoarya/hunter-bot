@@ -16,13 +16,13 @@ const TWELVE_SYMBOLS = {
   "USD/CAD": "USDCAD",
   "USD/CHF": "USDCHF",
   "NZD/USD": "NZDUSD",
-  "GOLD": "XAU/USD", // Gold spot
+  "GOLD": "XAUUSD", // Gold spot
   "XAU/USD": "XAUUSD",
   "SILVER": "XAGUSD",
   "XAG/USD": "XAGUSD",
   "OIL": "OIL", // Crude Oil future (works as OIL)
   "DXY": "DXY",
-  "NASDAQ": "COMP", // Nasdaq Composite
+  "NASDAQ": "IXIC", // Nasdaq Composite
   "VIX": "VIX",
   // Add more mappings as needed
 };
@@ -91,6 +91,8 @@ async function fetchTwelveDataPrice(symbol) {
     const status = e.response?.status;
     if (status === 429) {
       logger.warn(`TwelveData rate limit hit for ${symbol}`);
+    } else if (status === 404) {
+      logger.warn(`TwelveData no data for ${symbol} (404)`);
     } else {
       logger.error(`TwelveData fetch error for ${symbol}: ${e.message}`);
     }

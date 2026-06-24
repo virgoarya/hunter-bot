@@ -1,14 +1,12 @@
 const { fetchFinnhubPrice } = require('./finnhub');
-const { fetchTwelveDataPrice } = require('./twelveData');
+// TwelveData support removed in favor of Stooq (no API key needed)
+const { fetchStooqPrice } = require('./stooqService');
 const logger = require('../utils/logger');
 
-/**
- * Simple in‑memory circuit‑breaker state. Tracks consecutive failures per provider.
- * On 3 failures within a 5‑minute window the provider is skipped for subsequent calls.
- */
+// Circuit breaker tracks failures per provider
 const circuit = {
-  twelveData: { failures: 0, lastFail: 0 },
   finnhub: { failures: 0, lastFail: 0 },
+  stooq: { failures: 0, lastFail: 0 },
 };
 
 function shouldSkip(provider) {
@@ -32,27 +30,15 @@ function resetFailure(provider) {
 
 /**
  * Unified price fetcher that attempts providers in order:
- *   1️⃣ TwelveData (free tier)
- *   2️⃣ Finnhub (free tier)
+ *   1️⃣ Finnhub (free tier)
+ *   2️⃣ Stooq (free, no API key required)
  *
  * Returns an object compatible with existing callers:
  *   { symbol, close, previousClose, change, provider }
  * or `null` if all providers fail.
  */
 async function fetchPrice(symbol) {
-  // 1️⃣ TwelveData
-  if (!shouldSkip('twelveData')) {
-    const data = await fetchTwelveDataPrice(symbol);
-    if (data) {
-      resetFailure('twelveData');
-      return data;
-    }
-    recordFailure('twelveData');
-  } else {
-    logger.warn(`Skipping TwelveData for ${symbol} due to circuit‑breaker`);
-  }
-
-  // 2️⃣ Finnhub
+  // Try Finnhub first
   if (!shouldSkip('finnhub')) {
     const data = await fetchFinnhubPrice(symbol);
     if (data) {
@@ -62,6 +48,24 @@ async function fetchPrice(symbol) {
     recordFailure('finnhub');
   } else {
     logger.warn(`Skipping Finnhub for ${symbol} due to circuit‑breaker`);
+  }
+
+  // Fall back to Stooq
+  if (!shouldSkip('stooq')) {
+    const data = await fetchStooqPrice(symbol);
+    if (data) {
+      resetFailure('stooq');
+      return {
+        symbol,
+        close: data.close,
+        previousClose: data.open,
+        change: data.change,
+        provider: 'Stooq',
+      };
+    }
+    recordFailure('stooq');
+  } else {
+    logger.warn(`Skipping Stooq for ${symbol} due to circuit‑breaker`);
   }
 
   logger.warn(`All price providers failed for ${symbol}`);
