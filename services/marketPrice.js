@@ -21,6 +21,7 @@ let priceCache = { data: null, updatedAt: 0 };
  * wrapped in a timeout to avoid hanging the Discord interaction.
  */
 async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
+    symbols = symbols || DEFAULT_PAIRS;
     const now = Date.now();
 
     // Return cached data if still fresh

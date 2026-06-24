@@ -41,6 +41,7 @@ async function withRetry(fn, attempts = cfg.retryCount, base = cfg.baseDelayMs) 
 
 /** Main entry – fetch prices with ordered fallback */
 async function fetchPrices(symbols) {
+  symbols = symbols || [];
   const merged = {};
 
   for (const name of cfg.order) {
