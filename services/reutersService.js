@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 const cheerio = require("cheerio");
 const fs = require("fs");
@@ -15,7 +16,7 @@ function loadCache() {
             return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
         }
     } catch (e) {
-        console.error("Reuters cache load error:", e.message);
+        logger.error("Reuters cache load error:", e.message);
     }
     return { lastLinks: [] };
 }
@@ -24,7 +25,7 @@ function saveCache(cache) {
     try {
         fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
     } catch (e) {
-        console.error("Reuters cache save error:", e.message);
+        logger.error("Reuters cache save error:", e.message);
     }
 }
 
@@ -35,7 +36,7 @@ async function translateAndExpand(title, snippet, retryCount = 0) {
   try {
     if (Date.now() < reutersRateLimitUntil) {
       const waitMs = reutersRateLimitUntil - Date.now();
-      console.log(`⏳ Reuters translation rate limited, waiting ${waitMs}ms...`);
+      logger.info(`⏳ Reuters translation rate limited, waiting ${waitMs}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitMs));
     }
 
@@ -62,14 +63,14 @@ Hasil (Indonesian):`;
 
     return result.trim();
   } catch (error) {
-    console.error("Reuters translation/expansion error:", error.message);
+    logger.error("Reuters translation/expansion error:", error.message);
 
     if (retryCount < 3) {
       const retryAfter = error.response?.headers?.['retry-after'] 
         ? parseInt(error.response.headers['retry-after']) * 1000 
         : REUTERS_RETRY_DELAY * (retryCount + 1);
       
-      console.log(`⏳ Rate limited, retrying in ${retryAfter}ms (attempt ${retryCount + 1}/3)...`);
+      logger.info(`⏳ Rate limited, retrying in ${retryAfter}ms (attempt ${retryCount + 1}/3)...`);
       await new Promise(resolve => setTimeout(resolve, retryAfter));
       return translateAndExpand(title, snippet, retryCount + 1);
     }
@@ -80,7 +81,7 @@ Hasil (Indonesian):`;
 
 async function fetchReutersFinance() {
     try {
-        console.log("📰 Fetching Reuters Headlines with Snippets via Bing RSS...");
+        logger.info("📰 Fetching Reuters Headlines with Snippets via Bing RSS...");
 
         let response;
         try {
@@ -94,7 +95,7 @@ async function fetchReutersFinance() {
             });
         } catch (error) {
             if (error.response?.status === 429) {
-                console.warn("⚠️ Bing RSS rate limited (429). Skipping Reuters fetch for now.");
+                logger.warn("⚠️ Bing RSS rate limited (429). Skipping Reuters fetch for now.");
                 // Set a short cooldown in cache? For now just return empty
                 return [];
             }
@@ -137,7 +138,7 @@ async function fetchReutersFinance() {
         }
 
         if (newArticles.length > 0) {
-            console.log(`✨ Found ${newArticles.length} new Reuters headlines.`);
+            logger.info(`✨ Found ${newArticles.length} new Reuters headlines.`);
 
             // Update cache
             const allLinks = [...newArticles.map(a => a.link), ...cache.lastLinks].slice(0, 30);
@@ -145,14 +146,14 @@ async function fetchReutersFinance() {
 
             // Translate & Expand (with rate limit protection)
             for (const article of newArticles) {
-                console.log("📝 Processing/Expanding Reuters content:", article.title.substring(0, 30));
+                logger.info("📝 Processing/Expanding Reuters content:", article.title.substring(0, 30));
                 article.expandedContent = await translateAndExpand(article.title, article.snippet);
             }
         }
 
         return newArticles;
     } catch (error) {
-        console.error("Reuters (Bing) fetch error:", error.message);
+        logger.error("Reuters (Bing) fetch error:", error.message);
         return [];
     }
 }

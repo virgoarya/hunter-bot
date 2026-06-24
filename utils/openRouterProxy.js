@@ -1,3 +1,4 @@
+const logger = require('./logger');
 const axios = require("axios");
 
 /**
@@ -26,26 +27,26 @@ async function postToOpenRouter(messages, options = {}) {
     };
 
     try {
-        console.log(`📡 [AI Request] Calling ${payload.model}...`);
+        logger.info(`📡 [AI Request] Calling ${payload.model}...`);
         const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", payload, config);
         return response.data;
     } catch (error) {
         const errorData = error.response?.data?.error || {};
         const status = error.response?.status;
 
-        console.error(`⚠️ [AI Error] ${payload.model} failed (Status: ${status}):`, errorData.message || error.message);
+        logger.error(`⚠️ [AI Error] ${payload.model} failed (Status: ${status}):`, errorData.message || error.message);
 
         // Conditions for Fallback: Rate Limit (429) OR Payment Required (402) OR Server Error (5xx)
         if ((status === 429 || status === 402 || status >= 500) && payload.model !== fallbackModel) {
-            console.log(`🔄 [AI Fallback] Attempting failover to: ${fallbackModel}...`);
+            logger.info(`🔄 [AI Fallback] Attempting failover to: ${fallbackModel}...`);
 
             const fallbackPayload = { ...payload, model: fallbackModel };
             try {
                 const fallbackResponse = await axios.post("https://openrouter.ai/api/v1/chat/completions", fallbackPayload, config);
-                console.log(`✅ [AI Fallback] Success with ${fallbackModel}`);
+                logger.info(`✅ [AI Fallback] Success with ${fallbackModel}`);
                 return fallbackResponse.data;
             } catch (fallbackError) {
-                console.error(`❌ [AI Final Failure] Both models failed:`, fallbackError.response?.data?.error?.message || fallbackError.message);
+                logger.error(`❌ [AI Final Failure] Both models failed:`, fallbackError.response?.data?.error?.message || fallbackError.message);
                 throw fallbackError;
             }
         }

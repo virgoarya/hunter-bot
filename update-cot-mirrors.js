@@ -22,6 +22,7 @@
  */
 
 const fs = require('fs');
+const logger = require('../utils/logger');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -42,7 +43,7 @@ const MARKETBULL_ASSETS = {
 const MARKETBULL_MIRROR = path.join(__dirname, 'data', 'marketbull_cot.json');
 
 async function downloadCFTC() {
-    console.log('📡 Downloading CFTC data...');
+    logger.info('📡 Downloading CFTC data...');
     try {
         // Use curl with browser-like UA to bypass some protections
         const cmd = `curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${CFTC_URL}" -o "${CFTC_LOCAL}"`;
@@ -51,22 +52,22 @@ async function downloadCFTC() {
         if (stats.size < 1000) {
             throw new Error(`Downloaded file too small (${stats.size} bytes), likely failed`);
         }
-        console.log(`✅ CFTC mirror updated: ${stats.size} bytes`);
+        logger.info(`✅ CFTC mirror updated: ${stats.size} bytes`);
         return true;
     } catch (err) {
-        console.error('❌ Failed to update CFTC mirror:', err.message);
+        logger.error('❌ Failed to update CFTC mirror:', err.message);
         return false;
     }
 }
 
 async function downloadMarketBull() {
-    console.log('\n📊 Downloading MarketBull data...');
+    logger.info('\n📊 Downloading MarketBull data...');
     const data = {};
     let lastUpdate = new Date().toISOString().split('T')[0];
 
     for (const [key, url] of Object.entries(MARKETBULL_ASSETS)) {
         try {
-            console.log(`  Fetching ${key}...`);
+            logger.info(`  Fetching ${key}...`);
             // Use curl with UA
             const tmpFile = path.join(__dirname, 'tmp', `${key}.html`);
             fs.mkdirSync(path.dirname(tmpFile), { recursive: true });
@@ -100,9 +101,9 @@ async function downloadMarketBull() {
             };
 
             if (reportDate !== 'N/A') lastUpdate = reportDate;
-            console.log(`    ✅ ${key}: ${netPos} (Index6M: ${index6M})`);
+            logger.info(`    ✅ ${key}: ${netPos} (Index6M: ${index6M})`);
         } catch (err) {
-            console.warn(`    ⚠️ ${key}: ${err.message}`);
+            logger.warn(`    ⚠️ ${key}: ${err.message}`);
         } finally {
             // Cleanup tmp file
             try {
@@ -119,21 +120,21 @@ async function downloadMarketBull() {
     const mirror = { lastUpdate, data };
     fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
     fs.writeFileSync(MARKETBULL_MIRROR, JSON.stringify(mirror, null, 2));
-    console.log(`✅ MarketBull mirror updated: ${Object.keys(data).length} assets`);
+    logger.info(`✅ MarketBull mirror updated: ${Object.keys(data).length} assets`);
     return true;
 }
 
 function pushToGit() {
-    console.log('\n📤 Pushing changes to git...');
+    logger.info('\n📤 Pushing changes to git...');
     try {
         execSync('git add data/cot_raw.txt data/marketbull_cot.json', { stdio: 'inherit' });
         const commitMsg = `update: COT mirrors - ${new Date().toISOString().split('T')[0]}`;
         execSync(`git commit -m "${commitMsg}"`, { stdio: 'inherit' });
         execSync('git push origin main', { stdio: 'inherit' });
-        console.log('✅ Changes pushed to remote');
+        logger.info('✅ Changes pushed to remote');
         return true;
     } catch (err) {
-        console.error('❌ Git push failed:', err.message);
+        logger.error('❌ Git push failed:', err.message);
         return false;
     }
 }
@@ -145,10 +146,10 @@ async function main() {
     const cftcOnly = args.has('--cftc-only');
     const marketbull = args.has('--marketbull');
 
-    console.log('🔄 COT Mirrors Update\n');
-    console.log('Mode:', dryRun ? 'DRY RUN' : 'LIVE');
-    console.log('Push to git:', push ? 'YES' : 'NO');
-    console.log('');
+    logger.info('🔄 COT Mirrors Update\n');
+    logger.info('Mode:', dryRun ? 'DRY RUN' : 'LIVE');
+    logger.info('Push to git:', push ? 'YES' : 'NO');
+    logger.info('');
 
     let cftcUpdated = false;
     let mbUpdated = false;
@@ -157,34 +158,34 @@ async function main() {
         // CFTC Update (can run from any IP, usually works)
         cftcUpdated = await downloadCFTC();
         if (!cftcUpdated) {
-            console.log('⚠️ CFTC update failed but continuing...');
+            logger.info('⚠️ CFTC update failed but continuing...');
         }
 
         // MarketBull Update (only works from non-cloudflare-blocked IPs)
         if (marketbull || !cftcOnly) {
             mbUpdated = await downloadMarketBull();
             if (!mbUpdated) {
-                console.log('⚠️ MarketBull update failed (this is normal from Railway)');
+                logger.info('⚠️ MarketBull update failed (this is normal from Railway)');
             }
         }
     } else {
-        console.log('DRY RUN - would update:');
-        console.log('  - CFTC mirror (cot_raw.txt)');
-        console.log('  - MarketBull mirror (marketbull_cot.json)');
+        logger.info('DRY RUN - would update:');
+        logger.info('  - CFTC mirror (cot_raw.txt)');
+        logger.info('  - MarketBull mirror (marketbull_cot.json)');
     }
 
     if (push && !dryRun) {
         if (cftcUpdated || mbUpdated) {
             pushToGit();
         } else {
-            console.log('⚠️ No changes to push');
+            logger.info('⚠️ No changes to push');
         }
     }
 
-    console.log('\n✅ Update complete');
+    logger.info('\n✅ Update complete');
 }
 
 main().catch(err => {
-    console.error('❌ Fatal error:', err);
+    logger.error('❌ Fatal error:', err);
     process.exit(1);
 });

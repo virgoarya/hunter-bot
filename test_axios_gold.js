@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require('axios');
 const url = 'https://market-bulls.com/cot-report-gold/';
 axios.get(url, {
@@ -8,15 +9,15 @@ axios.get(url, {
     timeout: 10000
 })
 .then(r => {
-    console.log('Status:', r.status);
-    console.log('Content-Type:', r.headers['content-type']);
-    console.log('Body length:', r.data.length);
+    logger.info('Status:', r.status);
+    logger.info('Content-Type:', r.headers['content-type']);
+    logger.info('Body length:', r.data.length);
     // Check for some expected content
-    console.log('Has su-column?', r.data.includes('su-column'));
-    console.log('Has last_cot_table?', r.data.includes('last_cot_table'));
-    console.log('Has Report Date?', r.data.includes('Report Date'));
+    logger.info('Has su-column?', r.data.includes('su-column'));
+    logger.info('Has last_cot_table?', r.data.includes('last_cot_table'));
+    logger.info('Has Report Date?', r.data.includes('Report Date'));
 })
 .catch(e => {
-    console.error('Error status:', e.response?.status);
-    console.error('Message:', e.message);
+    logger.error('Error status:', e.response?.status);
+    logger.error('Message:', e.message);
 });

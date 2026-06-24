@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 const { updateMacroData, getMacroState } = require("./macroData");
 const { classifyRegime } = require("./regime");
@@ -130,14 +131,14 @@ async function buildContext(userId) {
     const flowData = await fetchLiquidityFlow();
     flowContext = buildFlowContext(flowData);
   } catch (err) {
-    console.error("Flow context error:", err.message);
+    logger.error("Flow context error:", err.message);
   }
 
   try {
     const cotData = await fetchCOTData();
     cotContext = buildCOTContext(cotData);
   } catch (err) {
-    console.error("COT context error:", err.message);
+    logger.error("COT context error:", err.message);
   }
 
   // Get conversation history for this user
@@ -333,7 +334,7 @@ ${calendarText}
 
     return replyContent;
   } catch (error) {
-    console.error("❌ generateReply Final Error:", error.message);
+    logger.error("❌ generateReply Final Error:", error.message);
     if (error.message.includes("AI providers failed")) {
       return "⚠️ Maaf, sepertinya kuota AI (OpenRouter & Gemini) sedang limit secara bersamaan. Silakan coba lagi nanti atau hubungi Admin.";
     }

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 async function sendShiftAlert(client, shift, narrative) {
 
     if (!shift) return;
@@ -16,7 +17,7 @@ ${shift.from} → ${shift.to}
 
     await channel.send(message);
 
-    console.log("🚨 Shift Alert Sent");
+    logger.info("🚨 Shift Alert Sent");
 }
 
 module.exports = { sendShiftAlert };

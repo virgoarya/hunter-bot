@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
@@ -16,10 +17,10 @@ function loadHistory() {
         if (fs.existsSync(HISTORY_FILE)) {
             const raw = fs.readFileSync(HISTORY_FILE, "utf8");
             cotHistory = JSON.parse(raw);
-            console.log(`📂 Loaded ${cotHistory.length} COT snapshots from disk.`);
+            logger.info(`📂 Loaded ${cotHistory.length} COT snapshots from disk.`);
         }
     } catch (err) {
-        console.error("❌ Error loading COT history:", err.message);
+        logger.error("❌ Error loading COT history:", err.message);
         cotHistory = [];
     }
 }
@@ -28,7 +29,7 @@ function saveHistory() {
     try {
         fs.writeFileSync(HISTORY_FILE, JSON.stringify(cotHistory, null, 2));
     } catch (err) {
-        console.error("❌ Error saving COT history:", err.message);
+        logger.error("❌ Error saving COT history:", err.message);
     }
 }
 
@@ -180,7 +181,7 @@ Konteks Makro:
         // Check if we already have a cached interpretation for this report date
         const existingSnapshot = cotHistory.find(snap => snap.date === cotData.reportDate);
         if (existingSnapshot && existingSnapshot.interpretation) {
-            console.log(`🤖 Using cached AI interpretation for ${cotData.reportDate}`);
+            logger.info(`🤖 Using cached AI interpretation for ${cotData.reportDate}`);
             return existingSnapshot.interpretation;
         }
 
@@ -203,7 +204,7 @@ Konteks Makro:
         return interpretation;
     } catch (error) {
         const errorData = error.response?.data?.error || {};
-        console.error("❌ COT AI Error Detail:", errorData.message || error.message);
+        logger.error("❌ COT AI Error Detail:", errorData.message || error.message);
 
         if (error.response?.status === 402 || (error.response?.status === 429 && errorData.message?.includes("credits"))) {
             return "❌ [OpenRouter] Saldo/Credit habis. Tambahkan minimal $5 di OpenRouter untuk kuota 1000 free-request/hari.";

@@ -1,3 +1,4 @@
+const logger = require('./logger');
 require("dotenv").config();
 const axios = require("axios");
 
@@ -32,7 +33,7 @@ async function postToAI(messages, options = {}) {
         };
         
         for (let i = 0; i < retries; i++) {
-            console.log(`📡 [OpenRouter] Calling ${model}${i > 0 ? ` (Retry ${i}/${retries - 1})` : ''}...`);
+            logger.info(`📡 [OpenRouter] Calling ${model}${i > 0 ? ` (Retry ${i}/${retries - 1})` : ''}...`);
             try {
                 const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", payload, orConfig);
                 return response.data.choices[0].message.content;
@@ -45,7 +46,7 @@ async function postToAI(messages, options = {}) {
                 }
                 
                 const delay = (i + 1) * 2000; // 2s, 4s backoff
-                console.warn(`⏳ [OpenRouter] Received status ${status}. Retrying in ${delay}ms...`);
+                logger.warn(`⏳ [OpenRouter] Received status ${status}. Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
@@ -60,7 +61,7 @@ async function postToAI(messages, options = {}) {
         for (const model of geminiModels) {
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
-                    console.log(`📡 [AI] Trying Gemini Model: ${model}${attempt > 0 ? ` (Retry ${attempt}/3)` : ''}...`);
+                    logger.info(`📡 [AI] Trying Gemini Model: ${model}${attempt > 0 ? ` (Retry ${attempt}/3)` : ''}...`);
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyGemini}`;
 
                     const systemMessage = messages.find(m => m.role === "system");
@@ -93,11 +94,11 @@ async function postToAI(messages, options = {}) {
                 } catch (error) {
                     const status = error.response?.status;
                     const errorMsg = error.response?.data?.error?.message || error.message;
-                    console.warn(`⚠️ [Gemini ${model} Failed]: ${errorMsg}`);
+                    logger.warn(`⚠️ [Gemini ${model} Failed]: ${errorMsg}`);
                     
                     if (attempt < 2 && (status === 429 || status === 503 || error.code === 'ECONNABORTED' || errorMsg?.includes('timeout') || errorMsg?.includes('high demand'))) {
                         const delay = (attempt + 1) * 5000;
-                        console.log(`⏳ Retrying in ${delay}ms...`);
+                        logger.info(`⏳ Retrying in ${delay}ms...`);
                         await new Promise(resolve => setTimeout(resolve, delay));
                         continue;
                     }
@@ -114,7 +115,7 @@ async function postToAI(messages, options = {}) {
         if (!apiKeyGroq) throw new Error("GROQ_API_KEY_MISSING");
 
         const model = "llama-3.3-70b-versatile";
-        console.log(`📡 [AI] Trying Groq Model: ${model}...`);
+        logger.info(`📡 [AI] Trying Groq Model: ${model}...`);
         
         const payload = {
             model: model,
@@ -139,7 +140,7 @@ async function postToAI(messages, options = {}) {
                 const status = error.response?.status;
                 if (attempt < 2 && (status === 429 || status === 503 || error.code === 'ECONNABORTED')) {
                     const delay = (attempt + 1) * 3000;
-                    console.log(`⏳ Groq retry in ${delay}ms...`);
+                    logger.info(`⏳ Groq retry in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     continue;
                 }
@@ -152,38 +153,38 @@ async function postToAI(messages, options = {}) {
 
     try {
         // 1. Try Primary (OpenRouter)
-        console.log(`🤖 [AI] Step 1: Trying Primary Model (${primaryModel})...`);
+        logger.info(`🤖 [AI] Step 1: Trying Primary Model (${primaryModel})...`);
         return await callOpenRouter(primaryModel);
     } catch (error) {
         const status = error.response?.status;
         const errorMsg = error.response?.data?.error?.message || error.message;
         const isTimeout = error.code === 'ECONNABORTED' || error.message?.toLowerCase().includes('timeout');
 
-        console.warn(`⚠️ [Primary Failed] Status: ${status ?? 'N/A'} | Error: ${errorMsg} | Timeout: ${isTimeout}`);
+        logger.warn(`⚠️ [Primary Failed] Status: ${status ?? 'N/A'} | Error: ${errorMsg} | Timeout: ${isTimeout}`);
 
         // Always attempt fallback for: 404/429/402/401/403/5xx OR timeout errors
         const shouldFallback = isTimeout || status === 404 || status === 429 || status === 402 || status === 401 || status === 403 || status >= 500;
 
         if (shouldFallback) {
             try {
-                console.log("🔄 [AI] Step 2: Attempting Failover to Google Gemini (Sequence)...");
+                logger.info("🔄 [AI] Step 2: Attempting Failover to Google Gemini (Sequence)...");
                 return await callGemini();
             } catch (geminiError) {
-                console.error("❌ [Gemini Sequence Failed]:", geminiError.message);
+                logger.error("❌ [Gemini Sequence Failed]:", geminiError.message);
 
                 // 3. Try Groq
                 try {
-                    console.log("🔄 [AI] Step 3: Attempting Failover to Groq...");
+                    logger.info("🔄 [AI] Step 3: Attempting Failover to Groq...");
                     return await callGroq();
                 } catch (groqError) {
-                    console.error("❌ [Groq Failed]:", groqError.message);
+                    logger.error("❌ [Groq Failed]:", groqError.message);
 
                     // 4. Try NVIDIA Nemotron (OpenRouter) as last resort
                     try {
-                        console.log("🔄 [AI] Step 4: Final Attempt with NVIDIA Nemotron (OpenRouter)...");
+                        logger.info("🔄 [AI] Step 4: Final Attempt with NVIDIA Nemotron (OpenRouter)...");
                         return await callOpenRouter("nvidia/nemotron-3-super-120b-a12b:free");
                     } catch (lastError) {
-                        console.error("💀 [AI] All Providers Exhausted.");
+                        logger.error("💀 [AI] All Providers Exhausted.");
                         throw new Error(`All AI providers failed. Last Error: ${lastError.message}`);
                     }
                 }

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
@@ -85,23 +86,23 @@ async function broadcastSampleNews() {
   });
 
   try {
-    console.log('🔌 Connecting to Discord...');
+    logger.info('🔌 Connecting to Discord...');
     await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Connected as', client.user.tag);
+    logger.info('✅ Connected as', client.user.tag);
 
     const channel = await client.channels.fetch(CHANNEL_ID);
     if (!channel) throw new Error(`Channel ${CHANNEL_ID} not found`);
-    console.log(`📺 Channel: ${channel.name} (${CHANNEL_ID})\n`);
+    logger.info(`📺 Channel: ${channel.name} (${CHANNEL_ID})\n`);
 
-    console.log('📊 Available sample news:');
+    logger.info('📊 Available sample news:');
     SAMPLE_NEWS.forEach((s, i) => {
-      console.log(`\n[${i + 1}] ${s.title}`);
-      console.log(`    Source: ${s.source}`);
-      console.log(`    Analysis length: ${s.analysis.length} chars`);
+      logger.info(`\n[${i + 1}] ${s.title}`);
+      logger.info(`    Source: ${s.source}`);
+      logger.info(`    Analysis length: ${s.analysis.length} chars`);
     });
 
-    console.log('\n━'.repeat(60));
-    console.log('🎯 Broadcasting sample news to Discord...\n');
+    logger.info('\n━'.repeat(60));
+    logger.info('🎯 Broadcasting sample news to Discord...\n');
 
     // Broadcast all samples (with delay)
     for (let i = 0; i < SAMPLE_NEWS.length; i++) {
@@ -127,7 +128,7 @@ async function broadcastSampleNews() {
         .setFooter({ text: "Critical Thinking Macro Desk | SAMPLE DATA | Hunter Bot" });
 
       await channel.send({ embeds: [embed] });
-      console.log(`✅ Broadcasted sample ${i + 1}: ${sample.title.substring(0, 50)}...`);
+      logger.info(`✅ Broadcasted sample ${i + 1}: ${sample.title.substring(0, 50)}...`);
 
       // Delay between broadcasts
       if (i < SAMPLE_NEWS.length - 1) {
@@ -135,17 +136,17 @@ async function broadcastSampleNews() {
       }
     }
 
-    console.log('\n✅ All sample news broadcasted successfully!');
-    console.log('\n💡 Check the Discord channel to review the embed formatting and content.');
+    logger.info('\n✅ All sample news broadcasted successfully!');
+    logger.info('\n💡 Check the Discord channel to review the embed formatting and content.');
 
   } catch (error) {
-    console.error('\n❌ Error:', error.message);
+    logger.error('\n❌ Error:', error.message);
     if (error.message.includes('token')) {
-      console.log('\n🔧 Make sure DISCORD_TOKEN is set in .env file');
+      logger.info('\n🔧 Make sure DISCORD_TOKEN is set in .env file');
     }
   } finally {
     await client.destroy();
-    console.log('🔌 Disconnected');
+    logger.info('🔌 Disconnected');
   }
 }
 

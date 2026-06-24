@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 const { EmbedBuilder } = require("discord.js");
 const { fetchReutersFinance } = require("../services/reutersService");
 
@@ -7,14 +8,14 @@ async function sendReutersUpdate(client) {
         const channel = await client.channels.fetch(REUTERS_CHANNEL_ID);
         
         if (!channel) {
-            console.error("❌ Reuters channel not found:", REUTERS_CHANNEL_ID);
+            logger.error("❌ Reuters channel not found:", REUTERS_CHANNEL_ID);
             return;
         }
 
         const newArticles = await fetchReutersFinance();
 
         if (newArticles.length === 0) {
-            console.log("ℹ️ No new Reuters articles to broadcast.");
+            logger.info("ℹ️ No new Reuters articles to broadcast.");
             return;
         }
 
@@ -31,11 +32,11 @@ async function sendReutersUpdate(client) {
                 .setTimestamp();
 
             await channel.send({ embeds: [embed] });
-            console.log("📡 Broadcasted Reuters headline:", article.title.substring(0, 30));
+            logger.info("📡 Broadcasted Reuters headline:", article.title.substring(0, 30));
         }
 
     } catch (error) {
-        console.error("❌ Error in sendReutersUpdate:", error);
+        logger.error("❌ Error in sendReutersUpdate:", error);
     }
 }
 

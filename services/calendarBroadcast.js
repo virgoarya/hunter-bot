@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { EmbedBuilder } = require("discord.js");
 const { fetchEconomicCalendar } = require("./economicCalendar");
 const { getMacroState } = require("./macroData");
@@ -120,7 +121,7 @@ CATATAN: Output HANYA analisis, tanpa pengenalan. Gunakan Indonesia 100%.
         return analysis;
 
     } catch (e) {
-        console.error("What-If generation error:", e.message);
+        logger.error("What-If generation error:", e.message);
         return "Analisis what-if tidak tersedia saat ini.";
     }
 }
@@ -236,7 +237,7 @@ async function getHighImpactAlerts() {
             } catch (e) {}
         }
     } catch (e) {
-        console.error("Macro state error for What-If:", e.message);
+        logger.error("Macro state error for What-If:", e.message);
     }
 
     for (const e of highImpactEvents) {
@@ -268,7 +269,7 @@ async function getHighImpactAlerts() {
                 timeWIB = new Date(e.date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) + " WIB";
             }
         } catch (err) {
-            console.warn(`Invalid date format for event ${eventName}:`, e.date);
+            logger.warn(`Invalid date format for event ${eventName}:`, e.date);
         }
 
         // Build embed
@@ -336,7 +337,7 @@ async function getNewReleaseAlerts() {
     const REFRESH_COOLDOWN = 15 * 60 * 1000;
 
     if (needsForceRefresh && (nowMs - lastForceRefreshTime > REFRESH_COOLDOWN)) {
-        console.log("⚡ High impact event passed. Forcing refresh for actuals...");
+        logger.info("⚡ High impact event passed. Forcing refresh for actuals...");
         lastForceRefreshTime = nowMs;
         events = await fetchEconomicCalendar(true);
     }

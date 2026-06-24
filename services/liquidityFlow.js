@@ -1,6 +1,7 @@
+const logger = require('../utils/logger');
 const { EmbedBuilder } = require("discord.js");
-const { fetchYahooPrice } = require("./yahooFinance");
-const { fetchStooqPrice } = require("./stooqService");
+// Unified price fetcher (TwelveData -> Finnhub)
+const { fetchPrice } = require("./priceService");
 const { fetchRepoData } = require("./repoService");
 const { getMacroState } = require("./macroData");
 const { classifyRegime } = require("./regime");
@@ -28,13 +29,10 @@ async function fetchLiquidityFlow(forceRefresh = false) {
 
   for (const instrument of FLOW_INSTRUMENTS) {
     try {
-      // Try Stooq First (Primary)
-      let data = await fetchStooqPrice(instrument.symbol);
-
-      // Fallback to Yahoo if Stooq fails
-      if (!data || !data.close) {
-        console.log(`⚠️ Stooq unavailable for ${instrument.symbol}, falling back to Yahoo...`);
-        data = await fetchYahooPrice(instrument.symbol);
+      // Use unified fetchPrice (TwelveData → Finnhub)
+      const data = await fetchPrice(instrument.symbol);
+      if (!data) {
+        logger.warn(`⚠️ Semua provider gratis gagal untuk ${instrument.symbol}`);
       }
 
       if (data && data.close) {
@@ -56,7 +54,7 @@ async function fetchLiquidityFlow(forceRefresh = false) {
         });
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `Flow fetch error for ${instrument.alias}:`,
         error.message
       );
@@ -99,10 +97,10 @@ Repo: ${repoData?.amountBillion}B (${repoData?.direction})`;
         { role: "user", content: `Data Makro:\n${macroContext}\n\nData Flow:\n${flowContext}\n\nBagaimana korelasi/sinkronisasi antara flow likuiditas saat ini dengan kondisi makro? Apakah mendukung atau anomali?` }
     ];
 
-    console.log("🤖 Generating AI Insight for Flow...");
+    logger.info("🤖 Generating AI Insight for Flow...");
     aiInsight = await postToAI(prompt, { temperature: 0.5, max_tokens: 150, timeout: 20000 }); // 20s timeout for flow
   } catch (err) {
-    console.error("AI Insight flow error:", err.message);
+    logger.error("AI Insight flow error:", err.message);
   }
 
   const flowData = {

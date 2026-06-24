@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { postToAI } = require("../utils/aiProxy");
 const { getMacroState } = require("./macroData");
 const { classifyRegime } = require("./regime");
@@ -134,7 +135,7 @@ Output HANYA berisi flash commentary sesuai format, tanpa pengenalan atau penutu
         return cleaned;
 
     } catch (error) {
-        console.error("Calendar AI interpretation error:", error.message);
+        logger.error("Calendar AI interpretation error:", error.message);
         return null;
     }
 }

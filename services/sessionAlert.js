@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 function isLondonOpen() {
     const hour = new Date().getUTCHours();
     return hour === 7;
@@ -21,7 +22,7 @@ async function sendSessionAlert(client, session) {
 ${session.londonBias}
         `);
 
-        console.log("🌍 London Alert Sent");
+        logger.info("🌍 London Alert Sent");
     }
 
     if (isNewYorkOpen()) {
@@ -32,7 +33,7 @@ ${session.londonBias}
 ${session.newyorkBias}
         `);
 
-        console.log("🇺🇸 NY Alert Sent");
+        logger.info("🇺🇸 NY Alert Sent");
     }
 }
 

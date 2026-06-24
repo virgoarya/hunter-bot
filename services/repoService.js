@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require('axios');
 
 async function fetchRepoData() {
@@ -43,7 +44,7 @@ async function fetchRepoData() {
             raw: latest
         };
     } catch (error) {
-        console.error("Repo Data fetch error:", error.message);
+        logger.error("Repo Data fetch error:", error.message);
         return { error: error.message };
     }
 }

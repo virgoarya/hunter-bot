@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { fetchMarketBullCOT } = require('./services/marketBullScraper');
 
 (async () => {
@@ -5,9 +6,9 @@ const { fetchMarketBullCOT } = require('./services/marketBullScraper');
     for (const key of keys) {
         try {
             const data = await fetchMarketBullCOT(key);
-            console.log(`${key}:`, data ? JSON.stringify(data) : 'null');
+            logger.info(`${key}:`, data ? JSON.stringify(data) : 'null');
         } catch (e) {
-            console.error(`${key} error:`, e.message);
+            logger.error(`${key} error:`, e.message);
         }
     }
-})().catch(e => console.error(e));
+})().catch(e => logger.error(e));

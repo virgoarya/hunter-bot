@@ -3,6 +3,7 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 const { resolveRootPath } = require("../utils/dataPath");
+const logger = require('../utils/logger');
 
 // Utility: Strip HTML tags, preserve line breaks
 function cleanHtml(html) {
@@ -46,7 +47,7 @@ function loadCache() {
             return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
         }
     } catch (e) {
-        console.error("Twitter cache load error:", e.message);
+        logger.error("Twitter cache load error:", e.message);
     }
     return {}; // Dynamic keys instead of hardcoded
 }
@@ -55,7 +56,7 @@ async function fetchFromTelegram(telegramUrl) {
     if (!telegramUrl) return []; // Some handles don't have telegram
 
     try {
-        console.log(`✈️ Fetching updates from Telegram (${telegramUrl})...`);
+        logger.info(`✈️ Fetching updates from Telegram (${telegramUrl})...`);
         const response = await axios.get(telegramUrl, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -83,7 +84,7 @@ async function fetchFromTelegram(telegramUrl) {
 
         return items.reverse(); // Latest first for consistency with RSS processing
     } catch (e) {
-        console.error("❌ Telegram fallback also failed:", e.message);
+        logger.error("❌ Telegram fallback also failed:", e.message);
         return [];
     }
 }
@@ -92,7 +93,7 @@ function saveCache(cache) {
     try {
         fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
     } catch (e) {
-        console.error("Twitter cache save error:", e.message);
+        logger.error("Twitter cache save error:", e.message);
     }
 }
 
@@ -105,7 +106,7 @@ async function translateTweet(text, retryCount = 0) {
         // Check if we're currently rate limited
         if (Date.now() < translationRateLimitUntil) {
             const waitMs = translationRateLimitUntil - Date.now();
-            console.log(`⏳ Translation rate limited, waiting ${waitMs}ms...`);
+            logger.info(`⏳ Translation rate limited, waiting ${waitMs}ms...`);
             await new Promise(resolve => setTimeout(resolve, waitMs));
         }
 
@@ -147,7 +148,7 @@ Postingan Twitter:
         const remaining = response.headers['x-ratelimit-remaining'];
         const resetTime = response.headers['x-ratelimit-reset'];
         if (remaining && parseInt(remaining) < 5) {
-            console.warn(`⚠️ Translation API rate limit low: ${remaining} remaining`);
+            logger.warn(`⚠️ Translation API rate limit low: ${remaining} remaining`);
         }
         if (resetTime) {
             const resetTimestamp = parseInt(resetTime) * 1000;
@@ -159,7 +160,7 @@ Postingan Twitter:
         const result = response.data.choices[0]?.message?.content?.trim();
         return result ? cleanHtml(result) : text;
     } catch (error) {
-        console.error("Translation error:", error.message);
+        logger.error("Translation error:", error.message);
 
         // Check if it's a rate limit error (429)
         if (error.response?.status === 429 && retryCount < 3) {
@@ -167,7 +168,7 @@ Postingan Twitter:
                 parseInt(error.response.headers['retry-after']) * 1000 :
                 TRANSLATION_RETRY_DELAY * (retryCount + 1);
 
-            console.log(`⏳ Rate limited, retrying in ${retryAfter}ms (attempt ${retryCount + 1}/3)...`);
+            logger.info(`⏳ Rate limited, retrying in ${retryAfter}ms (attempt ${retryCount + 1}/3)...`);
             await new Promise(resolve => setTimeout(resolve, retryAfter));
             return translateTweet(text, retryCount + 1);
         }
@@ -181,7 +182,7 @@ Postingan Twitter:
 async function translateBatch(tweets) {
     if (!tweets || tweets.length === 0) return tweets;
 
-    console.log(`📝 Batch translating ${tweets.length} tweets...`);
+    logger.info(`📝 Batch translating ${tweets.length} tweets...`);
 
     const BATCH_DELAY = 3000; // Increased to 3 seconds between translation calls to avoid rate limits
     const results = [];
@@ -198,45 +199,45 @@ async function translateBatch(tweets) {
                 await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
             }
         } catch (error) {
-            console.error(`Translation failed for tweet ${tweet.id}:`, error.message);
+            logger.error(`Translation failed for tweet ${tweet.id}:`, error.message);
             tweet.translatedContent = tweet.content; // Fallback to original
             results.push(tweet);
         }
     }
 
-    console.log(`✅ Batch translation completed: ${results.length}/${tweets.length} successful`);
+    logger.info(`✅ Batch translation completed: ${results.length}/${tweets.length} successful`);
     return results;
 }
 
 async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https://t.me/s/TheKobeissiLetter") {
     try {
-        console.log(`🐦 Fetching feeds from @${handle}...`);
+        logger.info(`🐦 Fetching feeds from @${handle}...`);
         let items = [];
         let source = null;
 
         // Step 1: Try Telegram first (Fast & Reliable, No Rate Limits) if provided
         if (telegramUrl) {
-            console.log(`✈️ Fetching from Telegram first (more reliable)...`);
+            logger.info(`✈️ Fetching from Telegram first (more reliable)...`);
             try {
                 items = await fetchFromTelegram(telegramUrl);
                 if (items.length > 0) {
                     source = "telegram";
-                    console.log(`✅ Telegram success for ${handle}: ${items.length} items`);
+                    logger.info(`✅ Telegram success for ${handle}: ${items.length} items`);
                 } else {
-                    console.warn(`⚠️ Telegram returned 0 items for ${handle}`);
+                    logger.warn(`⚠️ Telegram returned 0 items for ${handle}`);
                 }
             } catch (telegramErr) {
-                console.error(`❌ Telegram error for ${handle}:`, telegramErr.message);
+                logger.error(`❌ Telegram error for ${handle}:`, telegramErr.message);
             }
         }
 
         // Step 2: Try Nitter Instances as Fallback
         if (items.length === 0) {
-            console.log(`[Twitter] Telegram failed or skipped for ${handle}, trying ${RSS_URL_TEMPLATES.length} Nitter mirrors...`);
+            logger.info(`[Twitter] Telegram failed or skipped for ${handle}, trying ${RSS_URL_TEMPLATES.length} Nitter mirrors...`);
             for (let i = 0; i < RSS_URL_TEMPLATES.length; i++) {
                 const url = RSS_URL_TEMPLATES[i].replace("{handle}", handle);
                 try {
-                    console.log(`[Twitter-Retry ${i + 1}/${RSS_URL_TEMPLATES.length}] Trying: ${url}`);
+                    logger.info(`[Twitter-Retry ${i + 1}/${RSS_URL_TEMPLATES.length}] Trying: ${url}`);
 
                     const response = await axios.get(url, {
                         headers: {
@@ -273,28 +274,28 @@ async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https
 
                         if (items.length > 0) {
                             source = "nitter";
-                            console.log(`✅ Nitter success [${url}]: ${items.length} items`);
+                            logger.info(`✅ Nitter success [${url}]: ${items.length} items`);
                             break;
                         } else {
-                            console.log(`⚠️ Nitter [${url}] returned 0 items (empty RSS)`);
+                            logger.info(`⚠️ Nitter [${url}] returned 0 items (empty RSS)`);
                         }
                     } else {
-                        console.warn(`⚠️ Nitter [${url}] returned status ${response.status}`);
+                        logger.warn(`⚠️ Nitter [${url}] returned status ${response.status}`);
                     }
                 } catch (err) {
                     const status = err.response?.status;
                     const message = err.message;
 
                     if (status === 429) {
-                        console.warn(`[Twitter-Retry] Rate limited (429): ${url}`);
+                        logger.warn(`[Twitter-Retry] Rate limited (429): ${url}`);
                     } else if (status === 403) {
-                        console.warn(`[Twitter-Retry] Forbidden (403): ${url} - instance blocked`);
+                        logger.warn(`[Twitter-Retry] Forbidden (403): ${url} - instance blocked`);
                     } else if (status === 503) {
-                        console.warn(`[Twitter-Retry] Service Unavailable (503): ${url}`);
+                        logger.warn(`[Twitter-Retry] Service Unavailable (503): ${url}`);
                     } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
-                        console.warn(`[Twitter-Retry] Connection failed (${err.code}): ${url}`);
+                        logger.warn(`[Twitter-Retry] Connection failed (${err.code}): ${url}`);
                     } else {
-                        console.warn(`[Twitter-Retry] Error (${message}): ${url}`);
+                        logger.warn(`[Twitter-Retry] Error (${message}): ${url}`);
                     }
                 }
 
@@ -308,7 +309,7 @@ async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https
 
         // Final check: if still no items, return empty
         if (items.length === 0) {
-            console.error("❌ All sources (Nitter & Telegram) failed completely");
+            logger.error("❌ All sources (Nitter & Telegram) failed completely");
             return [];
         }
 
@@ -339,7 +340,7 @@ async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https
         if (!lastId) {
             cache[cacheKey] = items[0].id;
             saveCache(cache);
-            console.log(`✅ Initialized ${source} cache for ${handle} with ID: ${items[0].id.substring(0, 30)}...`);
+            logger.info(`✅ Initialized ${source} cache for ${handle} with ID: ${items[0].id.substring(0, 30)}...`);
             return [];
         }
 
@@ -353,11 +354,11 @@ async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https
         }
 
         if (newTweets.length === 0) {
-            console.log("📭 No new tweets found (cache hit).");
+            logger.info("📭 No new tweets found (cache hit).");
             return [];
         }
 
-        console.log(`📦 Found ${newTweets.length} new tweets from ${source} (limited to ${MAX_TWEETS})`);
+        logger.info(`📦 Found ${newTweets.length} new tweets from ${source} (limited to ${MAX_TWEETS})`);
 
         // Update cache immediately (prevent re-fetching on next run)
         cache[cacheKey] = items[0].id;
@@ -375,9 +376,9 @@ async function fetchLatestTweets(handle = "KobeissiLetter", telegramUrl = "https
         // Return in chronological order (oldest first)
         return processedTweets.reverse();
     } catch (error) {
-        console.error("❌ Twitter service main error:", error.message);
+        logger.error("❌ Twitter service main error:", error.message);
         if (error.response) {
-            console.error(`   Status: ${error.response.status}`);
+            logger.error(`   Status: ${error.response.status}`);
         }
         return [];
     }

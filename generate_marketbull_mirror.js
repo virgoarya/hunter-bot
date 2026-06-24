@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 const { fetchMarketBullCOT } = require('./services/marketBullScraper');
 const fs = require('fs');
 const path = require('path');
@@ -21,12 +22,12 @@ async function generateMirror() {
                 if (d.lastUpdate && d.lastUpdate !== "N/A") {
                     lastUpdate = d.lastUpdate; // use most recent
                 }
-                console.log(`✅ ${key}: ${d.netPosition} | ${d.cotIndex6M}`);
+                logger.info(`✅ ${key}: ${d.netPosition} | ${d.cotIndex6M}`);
             } else {
-                console.log(`⚠️ ${key}: No data`);
+                logger.info(`⚠️ ${key}: No data`);
             }
         } catch (e) {
-            console.error(`❌ ${key}: ${e.message}`);
+            logger.error(`❌ ${key}: ${e.message}`);
         }
     }
 
@@ -38,7 +39,7 @@ async function generateMirror() {
     const mirrorPath = path.join(__dirname, 'data', 'marketbull_cot.json');
     fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
     fs.writeFileSync(mirrorPath, JSON.stringify(mirror, null, 2));
-    console.log(`\n📦 Mirror saved to ${mirrorPath} (${Object.keys(data).length} assets)`);
+    logger.info(`\n📦 Mirror saved to ${mirrorPath} (${Object.keys(data).length} assets)`);
 }
 
 generateMirror().catch(console.error);

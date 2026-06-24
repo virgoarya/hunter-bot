@@ -1,16 +1,17 @@
+const logger = require('../utils/logger');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
 (async () => {
     try {
-        console.log("Fetching FXStreet ID...");
+        logger.info("Fetching FXStreet ID...");
         const res = await axios.get('https://www.fxstreet-id.com/news', {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
         });
         const $ = cheerio.load(res.data);
-        console.log("Title :", $('title').text());
+        logger.info("Title :", $('title').text());
 
         const articles = [];
          // Check their article schema
@@ -32,9 +33,9 @@ const cheerio = require('cheerio');
             }
         });
         
-        console.log("Found", articles.length, "articles.");
-        console.log(articles.slice(0, 3)); // Output top 3
+        logger.info("Found", articles.length, "articles.");
+        logger.info(articles.slice(0, 3)); // Output top 3
     } catch (e) {
-        console.error("Error:", e.message);
+        logger.error("Error:", e.message);
     }
 })();

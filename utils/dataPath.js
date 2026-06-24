@@ -1,3 +1,4 @@
+const logger = require('./logger');
 /**
  * dataPath.js
  * Centralized data path resolver for all cache/data files.
@@ -23,7 +24,7 @@ const DATA_DIR = process.env.DATA_DIR || path.join(PROJECT_ROOT, "data");
 // Ensure data directory exists at startup
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  console.log(`📂 Created data directory: ${DATA_DIR}`);
+  logger.info(`📂 Created data directory: ${DATA_DIR}`);
 }
 
 /**

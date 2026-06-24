@@ -1,8 +1,9 @@
+const logger = require('../utils/logger');
 require("dotenv").config();
 
-console.log("==========================================");
-console.log("🧪 INSTITUTIONAL DESK LOGIC TEST SUITE 🧪");
-console.log("==========================================\n");
+logger.info("==========================================");
+logger.info("🧪 INSTITUTIONAL DESK LOGIC TEST SUITE 🧪");
+logger.info("==========================================\n");
 
 // --- Import Modules ---
 const { getAdaptiveThresholds } = require("./services/adaptiveThresholds");
@@ -51,36 +52,36 @@ const statePanic = {
 };
 
 // --- Test 1: Single Source of Truth ---
-console.log("✅ TEST 1: Config Defaults");
-console.log(`   VIX Thresholds -> Elevated: ${DEFAULTS.VIX.elevated}, High: ${DEFAULTS.VIX.high}, De-risking: ${DEFAULTS.VIX.derisking}`);
-console.log(`   OIL Shock Threshold -> ${DEFAULTS.Shocks.OIL_SPIKE}%\n`);
+logger.info("✅ TEST 1: Config Defaults");
+logger.info(`   VIX Thresholds -> Elevated: ${DEFAULTS.VIX.elevated}, High: ${DEFAULTS.VIX.high}, De-risking: ${DEFAULTS.VIX.derisking}`);
+logger.info(`   OIL Shock Threshold -> ${DEFAULTS.Shocks.OIL_SPIKE}%\n`);
 
 // --- Test 2 & 3: Regime & Bias Engine (with Oil Bias) ---
-console.log("✅ TEST 2 & 3: Regime & Bias (Stagflation Scenario)");
+logger.info("✅ TEST 2 & 3: Regime & Bias (Stagflation Scenario)");
 const reg1 = classifyRegime(stateStagflation);
 const bias1 = buildBias(stateStagflation, reg1);
-console.log(`   Regime: ${reg1.regime}`);
-console.log(`   USD Bias: ${bias1.usdBias} | Gold Bias: ${bias1.goldBias} | Equity Bias: ${bias1.equityBias}`);
-console.log(`   OIL Bias: ${bias1.oilBias} (Expected: Bullish due to Stagflation)\n`);
+logger.info(`   Regime: ${reg1.regime}`);
+logger.info(`   USD Bias: ${bias1.usdBias} | Gold Bias: ${bias1.goldBias} | Equity Bias: ${bias1.equityBias}`);
+logger.info(`   OIL Bias: ${bias1.oilBias} (Expected: Bullish due to Stagflation)\n`);
 
-console.log("✅ TEST 2 & 3: Regime & Bias (Goldilocks Scenario)");
+logger.info("✅ TEST 2 & 3: Regime & Bias (Goldilocks Scenario)");
 const reg2 = classifyRegime(stateGoldilocks);
 const bias2 = buildBias(stateGoldilocks, reg2);
-console.log(`   Regime: ${reg2.regime}`);
-console.log(`   USD Bias: ${bias2.usdBias} | Gold Bias: ${bias2.goldBias} | Equity Bias: ${bias2.equityBias}`);
-console.log(`   OIL Bias: ${bias2.oilBias}\n`);
+logger.info(`   Regime: ${reg2.regime}`);
+logger.info(`   USD Bias: ${bias2.usdBias} | Gold Bias: ${bias2.goldBias} | Equity Bias: ${bias2.equityBias}`);
+logger.info(`   OIL Bias: ${bias2.oilBias}\n`);
 
 // --- Test 4: Intent Engine ---
-console.log("✅ TEST 4: Intent Engine (Adaptive Thresholds)");
+logger.info("✅ TEST 4: Intent Engine (Adaptive Thresholds)");
 const intentPanic = detectIntent(statePanic);
-console.log(`   Intent (Panic): ${intentPanic.intent}`);
+logger.info(`   Intent (Panic): ${intentPanic.intent}`);
 const intentGoldilocks = detectIntent(stateGoldilocks);
-console.log(`   Intent (Goldilocks): ${intentGoldilocks.intent}\n`);
+logger.info(`   Intent (Goldilocks): ${intentGoldilocks.intent}\n`);
 
 // --- Test 5: Correlation Engine (Oil + Gold = Inflation Fear) ---
-console.log("✅ TEST 5: Correlation Engine (New Oil Patterns)");
+logger.info("✅ TEST 5: Correlation Engine (New Oil Patterns)");
 const corrStagflation = detectCorrelationPatterns(stateStagflation);
-console.log(`   Stagflation Pattern: ${corrStagflation.signal} (${corrStagflation.description})`);
+logger.info(`   Stagflation Pattern: ${corrStagflation.signal} (${corrStagflation.description})`);
 
 const corrPanic = detectCorrelationPatterns({
     isHealthy: true,
@@ -90,18 +91,18 @@ const corrPanic = detectCorrelationPatterns({
     US10Y: { change: "-0.1" },
     DXY: { change: "0.1" }
 });
-console.log(`   Demand Destruction Pattern: ${corrPanic.signal} (${corrPanic.description})\n`);
+logger.info(`   Demand Destruction Pattern: ${corrPanic.signal} (${corrPanic.description})\n`);
 
 // --- Test 6: Rate of Change (OIL Shock) ---
-console.log("✅ TEST 6: Rate of Change (OIL Shock Detection)");
-console.log("   (Mocking data dynamically is hard without touching macroHistory cache, but we verify logic)");
+logger.info("✅ TEST 6: Rate of Change (OIL Shock Detection)");
+logger.info("   (Mocking data dynamically is hard without touching macroHistory cache, but we verify logic)");
 // Since analyzeRateOfChange relies on getSnapshotHoursAgo, we can't easily unit test it without mocking the fs.
 // We will skip actual execution but we verified the logic is in place.
-console.log("   Logic inspected and visually verified in rateOfChange.js.\n");
+logger.info("   Logic inspected and visually verified in rateOfChange.js.\n");
 
 
 // --- Test 7: Context generation for Macro News Analyzer ---
-console.log("✅ TEST 7: Macro News Context Integration");
+logger.info("✅ TEST 7: Macro News Context Integration");
 const context = `
 Current Institutional Desk Context:
 - Regime: ${reg1.regime}
@@ -109,7 +110,7 @@ Current Institutional Desk Context:
 - Correlation: ${corrStagflation.signal}
 - USD Bias: ${bias1.usdBias} | Gold Bias: ${bias1.goldBias} | Equity Bias: ${bias1.equityBias} | Oil Bias: ${bias1.oilBias}
 `;
-console.log("   Generated Context Payload that goes to AI:");
-console.log(context);
+logger.info("   Generated Context Payload that goes to AI:");
+logger.info(context);
 
-console.log("✅ ALL TESTS COMPLETED SUCCESSFULLY.");
+logger.info("✅ ALL TESTS COMPLETED SUCCESSFULLY.");

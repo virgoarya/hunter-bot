@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { buildNarrative } = require("./narrativeBuilder");
 
 function buildAutoNarrative(currentState, previousState) {
@@ -14,7 +15,7 @@ function buildAutoNarrative(currentState, previousState) {
       to: currentState.regime
     };
 
-    console.log("⚠️ REGIME SHIFT DETECTED:", shift);
+    logger.info("⚠️ REGIME SHIFT DETECTED:", shift);
   }
 
   const narrative = buildNarrative(

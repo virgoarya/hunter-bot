@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const fs = require("fs");
 const path = require("path");
 const { fetchMarketBullCOT } = require("./marketBullScraper");
@@ -30,18 +31,18 @@ async function fetchCOTData(forceRefresh = false) {
         if (fs.existsSync(CFTC_LOCAL_FILE)) {
             const raw = fs.readFileSync(CFTC_LOCAL_FILE, "utf8");
             cftcLines = raw.split("\n").filter(l => l.trim().length > 0);
-            console.log(`📂 Loaded CFTC mirror: ${CFTC_LOCAL_FILE} (${cftcLines.length} lines)`);
+            logger.info(`📂 Loaded CFTC mirror: ${CFTC_LOCAL_FILE} (${cftcLines.length} lines)`);
         } else {
-            console.warn("⚠️ CFTC local mirror not found:", CFTC_LOCAL_FILE);
+            logger.warn("⚠️ CFTC local mirror not found:", CFTC_LOCAL_FILE);
         }
 
         // 2. Load MarketBull mirror (marketbull_cot.json)
         let mbMirror = {};
         if (fs.existsSync(MARKETBULL_MIRROR)) {
             mbMirror = JSON.parse(fs.readFileSync(MARKETBULL_MIRROR, "utf8"));
-            console.log(`📂 Loaded MarketBull mirror: ${MARKETBULL_MIRROR} (${Object.keys(mbMirror.data || {}).length} assets)`);
+            logger.info(`📂 Loaded MarketBull mirror: ${MARKETBULL_MIRROR} (${Object.keys(mbMirror.data || {}).length} assets)`);
         } else {
-            console.warn("⚠️ MarketBull mirror not found:", MARKETBULL_MIRROR);
+            logger.warn("⚠️ MarketBull mirror not found:", MARKETBULL_MIRROR);
         }
 
         // 3. Build contracts from both sources
@@ -112,7 +113,7 @@ async function fetchCOTData(forceRefresh = false) {
             fetchedAt: new Date().toISOString(),
         };
     } catch (error) {
-        console.error("COT Data fetch error:", error.message);
+        logger.error("COT Data fetch error:", error.message);
         return null;
     }
 }

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 
 async function fetchBabyPipsCalendar(retries = 2) {
@@ -27,10 +28,10 @@ async function fetchBabyPipsCalendar(retries = 2) {
     try {
       if (attempt > 0) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-        console.log(`🔄 Retrying BabyPips fetch (attempt ${attempt + 1}/${retries + 1}) after ${delay}ms...`);
+        logger.info(`🔄 Retrying BabyPips fetch (attempt ${attempt + 1}/${retries + 1}) after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        console.log("🍼 Fetching economic data from BabyPips...");
+        logger.info("🍼 Fetching economic data from BabyPips...");
       }
 
       const response = await axios.get(url, {
@@ -46,8 +47,8 @@ async function fetchBabyPipsCalendar(retries = 2) {
       }
 
       if (!response.data || !Array.isArray(response.data.events)) {
-        console.warn("⚠️ BabyPips returned invalid JSON or empty events.");
-        console.log("📋 Response status:", response.status);
+        logger.warn("⚠️ BabyPips returned invalid JSON or empty events.");
+        logger.info("📋 Response status:", response.status);
         return [];
       }
 
@@ -73,7 +74,7 @@ async function fetchBabyPipsCalendar(retries = 2) {
         };
       });
 
-      console.log(`✅ BabyPips success: ${events.length} events retrieved`);
+      logger.info(`✅ BabyPips success: ${events.length} events retrieved`);
       return events;
 
     } catch (error) {
@@ -88,14 +89,14 @@ async function fetchBabyPipsCalendar(retries = 2) {
             ? `Rate limited (429) by BabyPips`
             : `Forbidden (403) -可能被Cloudflare或anti-bot memblokir`;
 
-          console.warn(`⚠️ ${errorMsg}`);
+          logger.warn(`⚠️ ${errorMsg}`);
 
           if (attempt < retries) {
             continue; // retry
           } else {
-            console.error(`❌ BabyPips scraper failed after ${retries + 1} attempts: ${errorMsg}`);
+            logger.error(`❌ BabyPips scraper failed after ${retries + 1} attempts: ${errorMsg}`);
             if (data) {
-              console.error("📋 Response data (truncated):", data.substring(0, 500));
+              logger.error("📋 Response data (truncated):", data.substring(0, 500));
             }
             return [];
           }
@@ -107,12 +108,12 @@ async function fetchBabyPipsCalendar(retries = 2) {
         continue;
       }
 
-      console.error("❌ BabyPips scraper error:", error.message);
+      logger.error("❌ BabyPips scraper error:", error.message);
       return [];
     }
   }
 
-  console.error("❌ BabyPips scraper failed completely:", lastError?.message);
+  logger.error("❌ BabyPips scraper failed completely:", lastError?.message);
   return [];
 }
 

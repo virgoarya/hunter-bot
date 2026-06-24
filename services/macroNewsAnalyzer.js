@@ -4,6 +4,7 @@ const { fetchLatestTweets } = require("./twitterService");
 const { fetchReutersFinance } = require("./reutersService");
 const { fetchFxstreetNews } = require("./fxstreetService");
 const { postToAI } = require("../utils/aiProxy");
+const logger = require('../utils/logger');
 const { resolveRootPath } = require("../utils/dataPath");
 
 const CHANNEL_ID = process.env.ALERT_CHANNEL_ID; // Target channel for macro analysis broadcast (Alerts)
@@ -29,10 +30,10 @@ function loadCache() {
           return (Date.now() - value.timestamp) < CACHE_TTL;
         })
       );
-      console.log(`📂 Loaded macro news analysis cache: ${Object.keys(analysisCache).length} entries (expired removed)`);
+      logger.info(`📂 Loaded macro news analysis cache: ${Object.keys(analysisCache).length} entries (expired removed)`);
     }
   } catch (e) {
-    console.warn("Macro news cache load error:", e.message);
+    logger.warn("Macro news cache load error:", e.message);
     analysisCache = {};
   }
 }
@@ -43,7 +44,7 @@ function saveCache() {
     if (!require("fs").existsSync(dir)) require("fs").mkdirSync(dir, { recursive: true });
     require("fs").writeFileSync(CACHE_FILE, JSON.stringify(analysisCache, null, 2));
   } catch (e) {
-    console.warn("Macro news cache save error:", e.message);
+    logger.warn("Macro news cache save error:", e.message);
   }
 }
 
@@ -99,17 +100,17 @@ function isBreakingNews(title, snippet) {
 async function analyzeMacroNewsWithAI(newsItem) {
   // Input validation
   if (!newsItem || typeof newsItem !== 'object') {
-    console.warn('Invalid newsItem: not an object or null');
+    logger.warn('Invalid newsItem: not an object or null');
     return null;
   }
   if (!newsItem.title && !newsItem.event && !newsItem.content) {
-    console.warn('Invalid newsItem: missing title, event, or content');
+    logger.warn('Invalid newsItem: missing title, event, or content');
     return null;
   }
 
   const cacheKey = `${newsItem.source}:${newsItem.link || newsItem.title}`;
   if (analysisCache[cacheKey]) {
-    console.log(`♻️ Using cached analysis for: ${newsItem.title.substring(0, 30)}...`);
+    logger.info(`♻️ Using cached analysis for: ${newsItem.title.substring(0, 30)}...`);
     return analysisCache[cacheKey];
   }
 
@@ -219,7 +220,7 @@ ${marketContext}
     const timeSinceLast = now - lastAICallTime;
     if (timeSinceLast < AI_CALL_INTERVAL) {
       const waitTime = AI_CALL_INTERVAL - timeSinceLast;
-      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before AI call`);
+      logger.info(`⏳ Rate limiting: waiting ${waitTime}ms before AI call`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     lastAICallTime = Date.now();
@@ -233,7 +234,7 @@ ${marketContext}
 
     // Validate analysis length - if too short, it's probably an error
     if (!analysis || analysis.length < 50) {
-      console.warn(`⚠️ Analysis too short (${analysis?.length} chars) for: ${title.substring(0, 50)}...`);
+      logger.warn(`⚠️ Analysis too short (${analysis?.length} chars) for: ${title.substring(0, 50)}...`);
       analysis = `**Analisis singkat:**\n\n"${title}"\n\n` +
                 `📌 **Fakta:** ${snippet.substring(0, 200)}...\n\n` +
                 `⚠️ *Analisis detail gagal karena limitasi API. Silakan referensi link untuk konteks lengkap.*`;
@@ -253,14 +254,14 @@ ${marketContext}
     return analysisCache[cacheKey];
 
   } catch (error) {
-    console.error("Macro news analysis error:", error.message);
+    logger.error("Macro news analysis error:", error.message);
     return null;
   }
 }
 
 async function fetchAndAnalyzeMacroNews() {
   try {
-    console.log("🔍 Fetching and analyzing breaking macro news...");
+    logger.info("🔍 Fetching and analyzing breaking macro news...");
 
     // 1. Fetch Twitter (KobeissiLetter only)
     let twitterNews = [];
@@ -274,10 +275,10 @@ async function fetchAndAnalyzeMacroNews() {
           link: t.link,
           date: t.date
         })).filter(t => isBreakingNews(t.title, t.snippet));
-        console.log(`🐦 Twitter: ${twitterNews.length} breaking news items after filter`);
+        logger.info(`🐦 Twitter: ${twitterNews.length} breaking news items after filter`);
       }
     } catch (err) {
-      console.warn("⚠️ Twitter fetch failed in macro analyzer:", err.message);
+      logger.warn("⚠️ Twitter fetch failed in macro analyzer:", err.message);
     }
 
     // 2. Fetch Reuters
@@ -292,10 +293,10 @@ async function fetchAndAnalyzeMacroNews() {
           link: r.link,
           expandedContent: r.expandedContent
         })).filter(r => isBreakingNews(r.title, r.snippet));
-        console.log(`📰 Reuters: ${reutersNews.length} breaking news items after filter`);
+        logger.info(`📰 Reuters: ${reutersNews.length} breaking news items after filter`);
       }
     } catch (err) {
-      console.warn("⚠️ Reuters fetch failed in macro analyzer:", err.message);
+      logger.warn("⚠️ Reuters fetch failed in macro analyzer:", err.message);
     }
 
     // 3. Fetch FXStreet-ID
@@ -310,10 +311,10 @@ async function fetchAndAnalyzeMacroNews() {
           link: f.link,
           date: f.date
         })).filter(f => isBreakingNews(f.title, f.snippet));
-        console.log(`🌐 FXStreet: ${fxstreetNews.length} breaking news items after filter`);
+        logger.info(`🌐 FXStreet: ${fxstreetNews.length} breaking news items after filter`);
       }
     } catch (err) {
-      console.warn("⚠️ FXStreet fetch failed in macro analyzer:", err.message);
+      logger.warn("⚠️ FXStreet fetch failed in macro analyzer:", err.message);
     }
 
     // Combine and limit to top 1 total (to avoid rate limits)
@@ -329,7 +330,7 @@ async function fetchAndAnalyzeMacroNews() {
     });
 
     if (recentNews.length === 0) {
-      console.log("ℹ️ No recent breaking macro news found (older than 12h).");
+      logger.info("ℹ️ No recent breaking macro news found (older than 12h).");
       return [];
     }
 
@@ -342,12 +343,12 @@ async function fetchAndAnalyzeMacroNews() {
 
     const selectedNews = recentNews.slice(0, 1);
 
-    console.log(`🎯 Total recent breaking news: ${recentNews.length}, analyzing top 1`);
+    logger.info(`🎯 Total recent breaking news: ${recentNews.length}, analyzing top 1`);
 
     // 3. Analyze each with AI (only selected top 1)
     const analyzedNews = [];
     for (const news of selectedNews) {
-      console.log(`🤖 Analyzing: ${news.title.substring(0, 50)}...`);
+      logger.info(`🤖 Analyzing: ${news.title.substring(0, 50)}...`);
       const analysis = await analyzeMacroNewsWithAI(news);
       if (analysis) {
         analyzedNews.push(analysis);
@@ -359,7 +360,7 @@ async function fetchAndAnalyzeMacroNews() {
     return analyzedNews;
 
   } catch (error) {
-    console.error("❌ Macro news analyzer error:", error.message);
+    logger.error("❌ Macro news analyzer error:", error.message);
     return [];
   }
 }
@@ -367,20 +368,20 @@ async function fetchAndAnalyzeMacroNews() {
 async function broadcastMacroNewsAnalysis(client) {
   try {
     if (!client || !client.isReady()) {
-      console.error("❌ broadcastMacroNewsAnalysis: Discord client not ready.");
+      logger.error("❌ broadcastMacroNewsAnalysis: Discord client not ready.");
       return;
     }
 
     const analyses = await fetchAndAnalyzeMacroNews();
 
     if (analyses.length === 0) {
-      console.log("ℹ️ No macro news analysis to broadcast.");
+      logger.info("ℹ️ No macro news analysis to broadcast.");
       return;
     }
 
     const channel = await client.channels.fetch(CHANNEL_ID);
     if (!channel) {
-      console.error("❌ Target channel not found:", CHANNEL_ID);
+      logger.error("❌ Target channel not found:", CHANNEL_ID);
       return;
     }
 
@@ -407,9 +408,9 @@ async function broadcastMacroNewsAnalysis(client) {
 
       try {
         await channel.send({ embeds: [embed] });
-        console.log(`📡 Broadcasted macro analysis: ${analysis.title.substring(0, 30)}... (analysis length: ${analysis.analysis?.length || 0})`);
+        logger.info(`📡 Broadcasted macro analysis: ${analysis.title.substring(0, 30)}... (analysis length: ${analysis.analysis?.length || 0})`);
       } catch (discordErr) {
-        console.error("❌ Failed to send embed:", discordErr.message);
+        logger.error("❌ Failed to send embed:", discordErr.message);
         // Try sending as plain text fallback
         await channel.send(`**BREAKING MACRO ANALYSIS**\n\n${analysis.analysis}\n\nSource: ${analysis.source}\nLink: ${analysis.link || 'N/A'}`);
       }
@@ -418,10 +419,10 @@ async function broadcastMacroNewsAnalysis(client) {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
-    console.log("✅ Macro news broadcast completed.");
+    logger.info("✅ Macro news broadcast completed.");
 
   } catch (error) {
-    console.error("❌ Broadcast macro news error:", error.message);
+    logger.error("❌ Broadcast macro news error:", error.message);
   }
 }
 
@@ -432,7 +433,7 @@ async function retryFetch(fn, retries = 3, delay = 1000) {
       return await fn();
     } catch (err) {
       if (i === retries - 1) throw err;
-      console.warn(`🔄 Retry ${i+1}/${retries} failed: ${err.message}, waiting ${delay}ms`);
+      logger.warn(`🔄 Retry ${i+1}/${retries} failed: ${err.message}, waiting ${delay}ms`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay *= 2; // Exponential backoff
     }

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 const cheerio = require("cheerio");
 
@@ -11,7 +12,7 @@ function cleanHtml(html) {
 
 async function fetchFxstreetNews() {
     try {
-        console.log("📰 Fetching feeds from FXStreet-ID (RSS)...");
+        logger.info("📰 Fetching feeds from FXStreet-ID (RSS)...");
         
         const controllers = new AbortController();
         const timeoutId = setTimeout(() => controllers.abort(), 15000);
@@ -29,7 +30,7 @@ async function fetchFxstreetNews() {
         clearTimeout(timeoutId);
 
         if (response.status !== 200 || !response.data) {
-            console.warn(`⚠️ FXStreet RSS returned status ${response.status}`);
+            logger.warn(`⚠️ FXStreet RSS returned status ${response.status}`);
             return [];
         }
 
@@ -53,15 +54,15 @@ async function fetchFxstreetNews() {
             }
         });
 
-        console.log(`✅ FXStreet RSS success: ${items.length} news items found`);
+        logger.info(`✅ FXStreet RSS success: ${items.length} news items found`);
         return items.slice(0, 10);
     } catch (error) {
         if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
-            console.error("❌ FXStreet service timeout");
+            logger.error("❌ FXStreet service timeout");
         } else if (error.response?.status === 403) {
-            console.error("❌ FXStreet service forbidden (403) - site may have blocked requests");
+            logger.error("❌ FXStreet service forbidden (403) - site may have blocked requests");
         } else {
-            console.error("❌ FXStreet service error:", error.message);
+            logger.error("❌ FXStreet service error:", error.message);
         }
         return [];
     }

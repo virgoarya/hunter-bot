@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { fetchAndAnalyzeMacroNews } = require('./services/macroNewsAnalyzer');
@@ -10,26 +11,26 @@ async function broadcastMacroAnalysis() {
   });
 
   try {
-    console.log('🔌 Connecting to Discord...');
+    logger.info('🔌 Connecting to Discord...');
     await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Connected as', client.user.tag);
+    logger.info('✅ Connected as', client.user.tag);
 
     const channel = await client.channels.fetch(CHANNEL_ID);
     if (!channel) {
       throw new Error(`Channel ${CHANNEL_ID} not found or bot has no access`);
     }
-    console.log(`📺 Found channel: ${channel.name} (${CHANNEL_ID})`);
+    logger.info(`📺 Found channel: ${channel.name} (${CHANNEL_ID})`);
 
-    console.log('\n📡 Fetching and analyzing macro news...');
+    logger.info('\n📡 Fetching and analyzing macro news...');
     const analyses = await fetchAndAnalyzeMacroNews();
 
     if (analyses.length === 0) {
-      console.log('⚠️ No breaking news to broadcast');
+      logger.info('⚠️ No breaking news to broadcast');
       await client.destroy();
       return;
     }
 
-    console.log(`✅ Got ${analyses.length} analysis to broadcast`);
+    logger.info(`✅ Got ${analyses.length} analysis to broadcast`);
 
     for (const analysis of analyses) {
       let description = analysis.analysis || "*Analisis tidak tersedia*";
@@ -52,12 +53,12 @@ async function broadcastMacroAnalysis() {
 
       try {
         await channel.send({ embeds: [embed] });
-        console.log(`📤 Broadcasted: ${analysis.title.substring(0, 50)}...`);
+        logger.info(`📤 Broadcasted: ${analysis.title.substring(0, 50)}...`);
       } catch (discordErr) {
-        console.error('❌ Failed to send embed:', discordErr.message);
+        logger.error('❌ Failed to send embed:', discordErr.message);
         // Fallback to plain text
         await channel.send(`**BREAKING MACRO ANALYSIS**\n\n${analysis.analysis}\n\nSource: ${analysis.source}\nLink: ${analysis.link || 'N/A'}`);
-        console.log('📤 Broadcasted as plain text fallback');
+        logger.info('📤 Broadcasted as plain text fallback');
       }
 
       // Delay between multiple broadcasts
@@ -66,16 +67,16 @@ async function broadcastMacroAnalysis() {
       }
     }
 
-    console.log('\n✅ Broadcast completed!');
+    logger.info('\n✅ Broadcast completed!');
 
   } catch (error) {
-    console.error('\n❌ Error:', error.message);
+    logger.error('\n❌ Error:', error.message);
     if (error.message.includes('token')) {
-      console.log('\n💡 Make sure DISCORD_TOKEN is set in .env file');
+      logger.info('\n💡 Make sure DISCORD_TOKEN is set in .env file');
     }
   } finally {
     await client.destroy();
-    console.log('🔌 Disconnected');
+    logger.info('🔌 Disconnected');
   }
 }
 

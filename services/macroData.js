@@ -1,28 +1,18 @@
 require("dotenv").config();
 const axios = require("axios");
-const { fetchYahooPrice } = require("./yahooFinance");
-const { fetchStooqPrice } = require("./stooqService");
+const { fetchPrice } = require("./priceService");
 const { fetchRepoData } = require("./repoService");
 
 const logger = require('../utils/logger');
 let macroState = {};
 
 async function fetchMacroIndicator(symbol) {
-  try {
-    const stooqData = await fetchStooqPrice(symbol);
-    if (stooqData && Number.isFinite(stooqData.close)) {
-      return stooqData;
-    }
-  } catch (error) {
-    logger.warn(`⚠️ Stooq failed for macro ${symbol}: ${error.message}`);
+  // Use the unified price fetcher (TwelveData → Finnhub)
+  const data = await fetchPrice(symbol);
+  if (!data) {
+    logger.warn(`⚠️ All free providers failed for macro ${symbol}`);
   }
-
-  logger.warn(`⚠️ Falling back to Yahoo Finance for macro ${symbol}...`);
-  const result = await fetchYahooPrice(symbol);
-  if (!result) {
-    console.warn(`⚠️ Yahoo Finance also failed for ${symbol}`);
-  }
-  return result;
+  return data;
 }
 
 async function updateMacroData() {
@@ -47,7 +37,7 @@ async function updateMacroData() {
   try {
     repoData = await fetchRepoData();
   } catch (err) {
-    console.warn("⚠️ Repo data fetch failed:", err.message);
+    logger.warn("⚠️ Repo data fetch failed:", err.message);
   }
 
   const results = {
@@ -92,10 +82,10 @@ async function fetchFREDSeries(seriesId, alias, retries = 2) {
     try {
       if (attempt > 0) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-        console.log(`🔄 Retrying FRED ${alias} (attempt ${attempt + 1}/${retries + 1}) after ${delay}ms...`);
+        logger.info(`🔄 Retrying FRED ${alias} (attempt ${attempt + 1}/${retries + 1}) after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        console.log(`📊 Fetching FRED ${alias} (${seriesId})...`);
+        logger.info(`📊 Fetching FRED ${alias} (${seriesId})...`);
       }
 
       const response = await axios.get(url, {
@@ -114,13 +104,13 @@ async function fetchFREDSeries(seriesId, alias, retries = 2) {
       const obs = response.data?.observations;
 
       if (!obs || obs.length === 0) {
-        console.warn(`⚠️ FRED ${alias}: No observations returned`);
+        logger.warn(`⚠️ FRED ${alias}: No observations returned`);
         return null;
       }
 
       const value = obs[0].value;
       if (!value || value === "." || isNaN(parseFloat(value))) {
-        console.warn(`⚠️ FRED ${alias}: Invalid value`);
+        logger.warn(`⚠️ FRED ${alias}: Invalid value`);
         return null;
       }
 
@@ -134,7 +124,7 @@ async function fetchFREDSeries(seriesId, alias, retries = 2) {
         }
       }
 
-      console.log(`✅ FRED ${alias}: ${current} (change: ${change})`);
+      logger.info(`✅ FRED ${alias}: ${current} (change: ${change})`);
       return {
         symbol: alias,
         close: current,
@@ -161,17 +151,17 @@ async function fetchFREDSeries(seriesId, alias, retries = 2) {
       }
 
       // Log detailed error on final failure
-      console.error(`❌ FRED ${alias} failed after ${retries + 1} attempts:`);
-      console.error(`   Error: ${error.message}`);
+      logger.error(`❌ FRED ${alias} failed after ${retries + 1} attempts:`);
+      logger.error(`   Error: ${error.message}`);
       if (error.response) {
-        console.error(`   Status: ${error.response.status}`);
-        console.error(`   Data: ${JSON.stringify(error.response.data).substring(0, 200)}`);
+        logger.error(`   Status: ${error.response.status}`);
+        logger.error(`   Data: ${JSON.stringify(error.response.data).substring(0, 200)}`);
       }
       return null;
     }
   }
 
-  console.error(`❌ FRED ${alias} failed completely:`, lastError?.message);
+  logger.error(`❌ FRED ${alias} failed completely:`, lastError?.message);
   return null;
 }
 

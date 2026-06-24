@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { EmbedBuilder } = require("discord.js");
 const axios = require("axios");
 const { getMacroState, updateMacroData } = require("./macroData");
@@ -127,7 +128,7 @@ async function buildSessionOutlook(sessionName) {
             flowText = formatFlowSummary(flowData);
         }
     } catch (err) {
-        console.error("Session flow fetch error:", err.message);
+        logger.error("Session flow fetch error:", err.message);
     }
 
     if (flowText) {
@@ -306,7 +307,7 @@ Buat Executive Summary sekarang.`;
         ], { temperature: 0.4, max_tokens: 600 });
 
     } catch (error) {
-        console.error("Outlook AI (MoE) error:", error.message);
+        logger.error("Outlook AI (MoE) error:", error.message);
         return null;
     }
 }
@@ -336,12 +337,12 @@ async function sendOutlookBroadcast(client, type = "morning") {
     }
 
     if (!payload) {
-        console.log(`No ${type} outlook data to broadcast`);
+        logger.info(`No ${type} outlook data to broadcast`);
         return;
     }
 
     await channel.send(payload);
-    console.log(`📤 ${type} outlook broadcast sent`);
+    logger.info(`📤 ${type} outlook broadcast sent`);
 }
 
 module.exports = {

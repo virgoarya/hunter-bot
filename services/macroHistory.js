@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 /**
  * macroHistory.js
  * Menyimpan snapshot data makro setiap macro cycle (6 jam).
@@ -18,7 +19,7 @@ function loadHistory() {
             return JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8"));
         }
     } catch (e) {
-        console.error("Macro history load error:", e.message);
+        logger.error("Macro history load error:", e.message);
     }
     return { snapshots: [] };
 }
@@ -29,7 +30,7 @@ function saveHistory(history) {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
     } catch (e) {
-        console.error("Macro history save error:", e.message);
+        logger.error("Macro history save error:", e.message);
     }
 }
 
@@ -69,7 +70,7 @@ function saveSnapshot(macroState) {
     history.snapshots = history.snapshots.filter(s => new Date(s.timestamp).getTime() > cutoff);
 
     saveHistory(history);
-    console.log(`📦 Macro snapshot saved (${history.snapshots.length} total)`);
+    logger.info(`📦 Macro snapshot saved (${history.snapshots.length} total)`);
 }
 
 /**

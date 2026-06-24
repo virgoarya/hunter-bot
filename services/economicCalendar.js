@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
@@ -16,11 +17,11 @@ function loadCache() {
     if (fs.existsSync(CACHE_FILE)) {
       const raw = fs.readFileSync(CACHE_FILE, "utf8");
       const parsed = JSON.parse(raw);
-      console.log(`📂 Loaded ${parsed.data.length} calendar events from disk cache.`);
+      logger.info(`📂 Loaded ${parsed.data.length} calendar events from disk cache.`);
       return parsed;
     }
   } catch (err) {
-    console.error("Cache load error:", err.message);
+    logger.error("Cache load error:", err.message);
   }
   return { data: [], updatedAt: 0 };
 }
@@ -31,7 +32,7 @@ function saveCache(data) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(CACHE_FILE, JSON.stringify({ data, updatedAt: Date.now() }));
   } catch (err) {
-    console.error("Cache save error:", err.message);
+    logger.error("Cache save error:", err.message);
   }
 }
 
@@ -42,7 +43,7 @@ function loadAVCache() {
             return JSON.parse(raw);
         }
     } catch (e) {
-        console.warn("AV Cache load error:", e.message);
+        logger.warn("AV Cache load error:", e.message);
     }
     return {
         calendar: { data: [], updatedAt: 0 },
@@ -58,7 +59,7 @@ function saveAVCache(cache) {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(AV_CACHE_FILE, JSON.stringify(cache, null, 2));
     } catch (e) {
-        console.warn("AV Cache save error:", e.message);
+        logger.warn("AV Cache save error:", e.message);
     }
 }
 
@@ -80,7 +81,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
 
   // 3. Check Hard Cooldown (30 mins)
   if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
-      console.log("⏳ AV News: Skipping due to hard cooldown.");
+      logger.info("⏳ AV News: Skipping due to hard cooldown.");
       return avCache.news.data;
   }
 
@@ -88,7 +89,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
     const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (!apiKey) return [];
 
-    console.log("📡 Fetching Macro News from AlphaVantage...");
+    logger.info("📡 Fetching Macro News from AlphaVantage...");
     avCache.lastCallTime = now;
     saveAVCache(avCache);
 
@@ -106,7 +107,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
     // Check for rate limit info in JSON
     const info = response.data?.Information || response.data?.Note;
     if (info && (info.includes("rate limit") || info.includes("25 requests per day"))) {
-        console.warn("🛑 AlphaVantage Rate Limit Detected (News). Hibernating for 12 hours.");
+        logger.warn("🛑 AlphaVantage Rate Limit Detected (News). Hibernating for 12 hours.");
         avCache.rateLimitedUntil = now + (12 * 60 * 60 * 1000);
         saveAVCache(avCache);
         return avCache.news.data;
@@ -132,7 +133,7 @@ async function fetchAlphaVantageMacroNews(limit = 8) {
 
     return newsData;
   } catch (error) {
-    console.warn("AlphaVantage news error:", error.message);
+    logger.warn("AlphaVantage news error:", error.message);
     return avCache.news.data;
   }
 }
@@ -142,7 +143,7 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
   
   // 1. Check rate limit hibernation
   if (now < avCache.rateLimitedUntil) {
-    console.warn(`🛑 AlphaVantage in hibernation. skipping fetch for ${Math.round((avCache.rateLimitedUntil - now) / 1000 / 60)} minutes.`);
+    logger.warn(`🛑 AlphaVantage in hibernation. skipping fetch for ${Math.round((avCache.rateLimitedUntil - now) / 1000 / 60)} minutes.`);
     return avCache.calendar.data;
   }
 
@@ -153,7 +154,7 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
 
   // 3. Check Hard Cooldown (30 mins)
   if (now - avCache.lastCallTime < AV_HARD_COOLDOWN_MS) {
-      console.log("⏳ AV Calendar: Skipping due to hard cooldown.");
+      logger.info("⏳ AV Calendar: Skipping due to hard cooldown.");
       return avCache.calendar.data;
   }
 
@@ -161,7 +162,7 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
     const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (!apiKey) return [];
 
-    console.log("📡 Fetching Actuals from AlphaVantage Calendar...");
+    logger.info("📡 Fetching Actuals from AlphaVantage Calendar...");
     avCache.lastCallTime = now;
     saveAVCache(avCache);
 
@@ -195,23 +196,23 @@ async function fetchAlphaVantageCalendar(forceRefresh = false) {
       return data;
     } else if (response.data?.Information || response.data?.Note) {
       const info = response.data.Information || response.data.Note;
-      console.warn("⚠️ AlphaVantage API Info:", info);
+      logger.warn("⚠️ AlphaVantage API Info:", info);
       if (info.includes("rate limit") || info.includes("25 requests per day")) {
         avCache.rateLimitedUntil = now + (12 * 60 * 60 * 1000);
         saveAVCache(avCache);
-        console.warn("🚫 AV Rate Limit Triggered. Hibernating for 12 hours.");
+        logger.warn("🚫 AV Rate Limit Triggered. Hibernating for 12 hours.");
       }
     }
     return avCache.calendar.data;
   } catch (error) {
-    console.error("AlphaVantage calendar error:", error.message);
+    logger.error("AlphaVantage calendar error:", error.message);
     return avCache.calendar.data;
   }
 }
 
 async function fetchEconomicCalendar(forceRefresh = false) {
   if (pendingCalendarFetch) {
-    console.log("⏳ Calendar fetch already in progress. Reusing existing request...");
+    logger.info("⏳ Calendar fetch already in progress. Reusing existing request...");
     return pendingCalendarFetch;
   }
 
@@ -231,7 +232,7 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
 
   const FE_COOLDOWN_MS = 2 * 60 * 1000;
   if (forceRefresh && now - calendarCache.updatedAt < FE_COOLDOWN_MS && calendarCache.data.length > 0) {
-    console.warn(`⏳ FairEconomy Cooldown Active. Bypass forceRefresh ditahan selama sisa ${(FE_COOLDOWN_MS - (now - calendarCache.updatedAt)) / 1000} detik.`);
+    logger.warn(`⏳ FairEconomy Cooldown Active. Bypass forceRefresh ditahan selama sisa ${(FE_COOLDOWN_MS - (now - calendarCache.updatedAt)) / 1000} detik.`);
     return calendarCache.data;
   }
 
@@ -246,7 +247,7 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
     let feData = [];
     const feUrl = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
     try {
-      console.log("📅 Fetching Economic Calendar from FairEconomy Mirror...");
+      logger.info("📅 Fetching Economic Calendar from FairEconomy Mirror...");
       const feRes = await axios.get(feUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -255,9 +256,9 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
         timeout: 10000
       });
       if (Array.isArray(feRes.data)) feData = feRes.data;
-      console.log(`✅ FairEconomy: ${feData.length} events retrieved`);
+      logger.info(`✅ FairEconomy: ${feData.length} events retrieved`);
     } catch (err) {
-      console.warn("⚠️ FairEconomy fetch failed:", err.message);
+      logger.warn("⚠️ FairEconomy fetch failed:", err.message);
     }
 
     // 2. Fetch BabyPips (SECONDARY - sebagai complement)
@@ -273,9 +274,9 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
             if (e.country === "USD" && (name === "CPI" || name === "CPI S.A")) return false;
             return isMajor && isHigh;
         });
-        console.log(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
+        logger.info(`✅ BabyPips: ${bpCal.length} high-impact events retrieved`);
       } catch (bpErr) {
-        console.warn("⚠️ BabyPips fetch failed:", bpErr.message);
+        logger.warn("⚠️ BabyPips fetch failed:", bpErr.message);
       }
     }
 
@@ -296,7 +297,7 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
     } else if (bpCal.length > 0) {
       events = bpCal;
     } else {
-      console.warn("⚠️ Both FairEconomy and BabyPips failed, returning cached data");
+      logger.warn("⚠️ Both FairEconomy and BabyPips failed, returning cached data");
       return calendarCache.data;
     }
 
@@ -321,11 +322,11 @@ async function _fetchEconomicCalendarInternal(forceRefresh = false) {
     calendarCache = { data: merged, updatedAt: now };
     saveCache(merged);
 
-    console.log(`✅ Calendar updated: ${processedEvents.length} events (+ ${avNews.length} news).`);
+    logger.info(`✅ Calendar updated: ${processedEvents.length} events (+ ${avNews.length} news).`);
     return merged;
 
   } catch (error) {
-    console.error("Calendar fetch error:", error.message);
+    logger.error("Calendar fetch error:", error.message);
     return calendarCache.data;
   }
 }

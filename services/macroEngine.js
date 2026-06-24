@@ -15,14 +15,14 @@ const logger = require('../utils/logger');
 
 async function runMacroCycle(client, silent = false) {
 
-  console.log("🔄 Running Macro Cycle...");
+  logger.info("🔄 Running Macro Cycle...");
 
   // 1. Update data
   await updateMacroData();
   const state = getMacroState();
 
   if (!state?.isHealthy) {
-    console.log("⚠️ Macro data unhealthy — skipping cycle");
+    logger.info("⚠️ Macro data unhealthy — skipping cycle");
     return;
   }
 
@@ -58,8 +58,8 @@ async function runMacroCycle(client, silent = false) {
 
   if (!silent) await sendSessionAlert(client, session);
 
-  console.log("📊 Macro Updated");
-  console.log(regime.regime, "|", intent.intent);
+  logger.info("📊 Macro Updated");
+  logger.info(regime.regime, "|", intent.intent);
 
   // 9. Broadcast
   if (!silent) await sendBiasBroadcast(

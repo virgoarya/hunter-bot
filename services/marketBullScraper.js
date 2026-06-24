@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const axios = require("axios");
 const cheerio = require("cheerio");
 const fs = require("fs");
@@ -88,7 +89,7 @@ async function fetchMarketBullCOT(assetKey) {
 
         return data;
     } catch (e) {
-        console.error(`❌ MarketBull Scraper Error (${assetKey}):`, e.message);
+        logger.error(`❌ MarketBull Scraper Error (${assetKey}):`, e.message);
         return null;
     }
 }

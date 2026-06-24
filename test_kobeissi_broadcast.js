@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { fetchLatestTweets } = require('./services/twitterService');
@@ -71,7 +72,7 @@ Keep it concise (max 20 lines). Use professional Indonesian.`;
 
     return response?.trim() || null;
   } catch (error) {
-    console.error('AI analysis error:', error.message);
+    logger.error('AI analysis error:', error.message);
     return null;
   }
 }
@@ -82,36 +83,36 @@ async function testKobeissiLetterBroadcast() {
   });
 
   try {
-    console.log('🔌 Connecting to Discord...');
+    logger.info('🔌 Connecting to Discord...');
     await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Connected as', client.user.tag);
+    logger.info('✅ Connected as', client.user.tag);
 
     const channel = await client.channels.fetch(CHANNEL_ID);
     if (!channel) throw new Error(`Channel ${CHANNEL_ID} not found`);
-    console.log(`📺 Channel: ${channel.name}`);
+    logger.info(`📺 Channel: ${channel.name}`);
 
-    console.log('\n📡 Fetching tweets from @KobeissiLetter...');
+    logger.info('\n📡 Fetching tweets from @KobeissiLetter...');
     const tweets = await fetchLatestTweets();
 
     if (tweets.length === 0) {
-      console.log('⚠️ No new tweets from KobeissiLetter (cache hit or no new tweets)');
+      logger.info('⚠️ No new tweets from KobeissiLetter (cache hit or no new tweets)');
       await client.destroy();
       return;
     }
 
-    console.log(`✅ Fetched ${tweets.length} tweets`);
+    logger.info(`✅ Fetched ${tweets.length} tweets`);
 
     // Filter breaking news
     const breakingTweets = tweets.filter(t => isBreakingNews(t.content, t.content));
-    console.log(`🎯 Breaking news found: ${breakingTweets.length}`);
+    logger.info(`🎯 Breaking news found: ${breakingTweets.length}`);
 
     if (breakingTweets.length === 0) {
-      console.log('❌ No tweets passed breaking news filter');
-      console.log('\n📋 All tweets (for debugging):');
+      logger.info('❌ No tweets passed breaking news filter');
+      logger.info('\n📋 All tweets (for debugging):');
       tweets.forEach((t, i) => {
         const isBreaking = isBreakingNews(t.content, t.content);
-        console.log(`\n[${i+1}] ${isBreaking ? '✅' : '❌'} ${t.date || 'No date'}`);
-        console.log(`   ${t.content.substring(0, 100)}...`);
+        logger.info(`\n[${i+1}] ${isBreaking ? '✅' : '❌'} ${t.date || 'No date'}`);
+        logger.info(`   ${t.content.substring(0, 100)}...`);
       });
       await client.destroy();
       return;
@@ -121,21 +122,21 @@ async function testKobeissiLetterBroadcast() {
     breakingTweets.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     const selected = breakingTweets[0];
 
-    console.log(`\n🏆 Selected tweet:`);
-    console.log(`Date: ${selected.date}`);
-    console.log(`Content: ${selected.content.substring(0, 150)}...`);
-    console.log(`Link: ${selected.link}`);
+    logger.info(`\n🏆 Selected tweet:`);
+    logger.info(`Date: ${selected.date}`);
+    logger.info(`Content: ${selected.content.substring(0, 150)}...`);
+    logger.info(`Link: ${selected.link}`);
 
-    console.log('\n🤖 Analyzing with AI...');
+    logger.info('\n🤖 Analyzing with AI...');
     const analysis = await analyzeTweetWithAI(selected);
 
     if (!analysis) {
-      console.error('❌ AI analysis failed');
+      logger.error('❌ AI analysis failed');
       await client.destroy();
       return;
     }
 
-    console.log(`✅ Analysis complete (${analysis.length} chars)`);
+    logger.info(`✅ Analysis complete (${analysis.length} chars)`);
 
     // Send to Discord
     let description = analysis;
@@ -157,13 +158,13 @@ async function testKobeissiLetterBroadcast() {
       .setFooter({ text: "Critical Thinking Macro Desk | Hunter Bot" });
 
     await channel.send({ embeds: [embed] });
-    console.log('\n✅ Broadcasted to Discord channel!');
+    logger.info('\n✅ Broadcasted to Discord channel!');
 
   } catch (error) {
-    console.error('\n❌ Error:', error.message);
+    logger.error('\n❌ Error:', error.message);
   } finally {
     await client.destroy();
-    console.log('🔌 Disconnected');
+    logger.info('🔌 Disconnected');
   }
 }
 

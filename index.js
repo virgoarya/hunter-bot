@@ -262,7 +262,7 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.editReply("Command tidak dikenal.");
     }
   } catch (error) {
-    console.error("Slash command error:", error);
+    logger.error("Slash command error:", error);
     await interaction.editReply("⚠️ Terjadi kesalahan saat memproses command.");
   }
 });
@@ -299,7 +299,7 @@ client.on("messageCreate", async (message) => {
       }
     }
   } catch (error) {
-    console.error("Error handling message:", error);
+    logger.error("Error handling message:", error);
     await message.reply("⚠️ Terjadi kesalahan saat memproses permintaan Anda.");
   }
 });
@@ -365,7 +365,7 @@ const server = http.createServer(async (req, res) => {
         } : null,
       });
     } catch (err) {
-      console.error("API /dashboard error:", err.message);
+      logger.error("API /dashboard error:", err.message);
       return jsonResponse(res, { error: err.message });
     }
   }
@@ -389,7 +389,7 @@ const server = http.createServer(async (req, res) => {
       }));
       return jsonResponse(res, { data: contracts, reportDate: cotResult?.reportDate });
     } catch (err) {
-      console.error("API /cot error:", err.message);
+      logger.error("API /cot error:", err.message);
       return jsonResponse(res, { error: err.message, data: [] });
     }
   }
@@ -405,15 +405,15 @@ server.listen(PORT, () => {
 
 // === Error Handling & Graceful Shutdown ===
 client.on("error", (error) => {
-  console.error("Discord client error:", error);
+  logger.error("Discord client error:", error);
 });
 
 process.on("unhandledRejection", (error) => {
-  console.error("Unhandled rejection:", error);
+  logger.error("Unhandled rejection:", error);
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("Uncaught exception:", error);
+  logger.error("Uncaught exception:", error);
   // Optional: Graceful exit after critical exception
   process.exit(1);
 });

@@ -1,3 +1,4 @@
+const logger = require('./logger');
 const cron = require("node-cron");
 
 /**
@@ -18,85 +19,85 @@ const cron = require("node-cron");
  */
 
 function startAllSchedulers(callbacks) {
-    console.log("⏱️ Broadcast Scheduler Starting (WIB Local Time)...\n");
+    logger.info("⏱️ Broadcast Scheduler Starting (WIB Local Time)...\n");
 
     // === MORNING OUTLOOK (09:30 WIB Mon-Fri) ===
     if (callbacks.morningOutlook) {
         cron.schedule("30 9 * * 1-5", async () => {
-            console.log("🌅 Triggering Morning Outlook...");
+            logger.info("🌅 Triggering Morning Outlook...");
             try {
                 await callbacks.morningOutlook();
             } catch (err) {
-                console.error("❌ Morning Outlook error:", err.message);
+                logger.error("❌ Morning Outlook error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Morning Outlook: 09:30 WIB (Mon-Fri)");
+        logger.info("  ✅ Morning Outlook: 09:30 WIB (Mon-Fri)");
     }
 
     // === CALENDAR DAILY (09:31 WIB Mon-Fri) ===
     if (callbacks.calendarDaily) {
         // Offset by 1 minute to avoid race conditions
         cron.schedule("31 9 * * 1-5", async () => {
-            console.log("📅 Triggering Calendar Broadcast...");
+            logger.info("📅 Triggering Calendar Broadcast...");
             try {
                 await callbacks.calendarDaily();
             } catch (err) {
-                console.error("❌ Calendar Broadcast error:", err.message);
+                logger.error("❌ Calendar Broadcast error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Calendar Daily: 09:31 WIB (Mon-Fri)");
+        logger.info("  ✅ Calendar Daily: 09:31 WIB (Mon-Fri)");
     }
 
     // === LONDON SESSION (12:00 WIB Mon-Fri) ===
     if (callbacks.londonSession) {
         cron.schedule("0 12 * * 1-5", async () => {
-            console.log("🌍 Triggering London Session Outlook...");
+            logger.info("🌍 Triggering London Session Outlook...");
             try {
                 await callbacks.londonSession();
             } catch (err) {
-                console.error("❌ London Session error:", err.message);
+                logger.error("❌ London Session error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ London Session: 12:00 WIB (Mon-Fri)");
+        logger.info("  ✅ London Session: 12:00 WIB (Mon-Fri)");
     }
 
     // === NEW YORK SESSION (18:00 WIB Mon-Fri) ===
     if (callbacks.nySession) {
         cron.schedule("0 18 * * 1-5", async () => {
-            console.log("🇺🇸 Triggering NY Session Outlook...");
+            logger.info("🇺🇸 Triggering NY Session Outlook...");
             try {
                 await callbacks.nySession();
             } catch (err) {
-                console.error("❌ NY Session error:", err.message);
+                logger.error("❌ NY Session error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ NY Session: 18:00 WIB (Mon-Fri)");
+        logger.info("  ✅ NY Session: 18:00 WIB (Mon-Fri)");
     }
 
     // === MACRO UPDATE (Every 6 hours) ===
     if (callbacks.macroUpdate) {
         cron.schedule("0 */6 * * *", async () => {
-            console.log("🔄 Triggering Macro Update...");
+            logger.info("🔄 Triggering Macro Update...");
             try {
                 await callbacks.macroUpdate();
             } catch (err) {
-                console.error("❌ Macro Update error:", err.message);
+                logger.error("❌ Macro Update error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Macro Update: Every 6 hours");
+        logger.info("  ✅ Macro Update: Every 6 hours");
     }
 
     // === COT WEEKLY (21:00 WIB Sunday) ===
     if (callbacks.cotWeekly) {
         cron.schedule("0 21 * * 0", async () => {
-            console.log("📊 Triggering COT Weekly Report...");
+            logger.info("📊 Triggering COT Weekly Report...");
             try {
                 await callbacks.cotWeekly();
             } catch (err) {
-                console.error("❌ COT Weekly error:", err.message);
+                logger.error("❌ COT Weekly error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ COT Weekly: 21:00 WIB (Sunday)");
+        logger.info("  ✅ COT Weekly: 21:00 WIB (Sunday)");
     }
 
     // === HIGH IMPACT EVENT ALERT (Every 15 minutes) ===
@@ -105,10 +106,10 @@ function startAllSchedulers(callbacks) {
             try {
                 await callbacks.eventAlert();
             } catch (err) {
-                console.error("❌ Event Alert error:", err.message);
+                logger.error("❌ Event Alert error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Event Alert Check: Every 15 minutes");
+        logger.info("  ✅ Event Alert Check: Every 15 minutes");
     }
 
     // === NEW DATA RELEASE ALERT (Every 5 minutes) ===
@@ -117,10 +118,10 @@ function startAllSchedulers(callbacks) {
             try {
                 await callbacks.releaseAlert();
             } catch (err) {
-                console.error("❌ Release Alert error:", err.message);
+                logger.error("❌ Release Alert error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ AI Release Analyzer: Every 5 minutes");
+        logger.info("  ✅ AI Release Analyzer: Every 5 minutes");
     }
 
     // === TWITTER FEEDS (Every 10 minutes) ===
@@ -129,10 +130,10 @@ function startAllSchedulers(callbacks) {
             try {
                 await callbacks.twitterUpdates();
             } catch (err) {
-                console.error("❌ Twitter Feeds error:", err.message);
+                logger.error("❌ Twitter Feeds error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Twitter Feeds (@KobeissiLetter): Every 10 minutes");
+        logger.info("  ✅ Twitter Feeds (@KobeissiLetter): Every 10 minutes");
     }
 
     // === REUTERS FINANCE (Every 2 hours) ===
@@ -141,32 +142,32 @@ function startAllSchedulers(callbacks) {
             try {
                 await callbacks.reutersUpdates();
             } catch (err) {
-                console.error("❌ Reuters Finance error:", err.message);
+                logger.error("❌ Reuters Finance error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Reuters Finance: Every 2 hours");
+        logger.info("  ✅ Reuters Finance: Every 2 hours");
     }
 
     // === MACRO NEWS ANALYSIS (Critical Thinking) - Every 2 hours ===
     if (callbacks.macroNewsAnalysis) {
         cron.schedule("0 */2 * * *", async () => {
             try {
-                console.log("🧠 Triggering Macro News Analysis (Critical Thinking)...");
+                logger.info("🧠 Triggering Macro News Analysis (Critical Thinking)...");
                 await callbacks.macroNewsAnalysis();
             } catch (err) {
-                console.error("❌ Macro News Analysis error:", err.message);
+                logger.error("❌ Macro News Analysis error:", err.message);
             }
         }, { timezone: 'Asia/Jakarta' });
-        console.log("  ✅ Macro News Analysis (Critical Thinking): Every 2 hours");
+        logger.info("  ✅ Macro News Analysis (Critical Thinking): Every 2 hours");
     }
 
-    console.log("\n⏱️ All schedulers active!\n");
+    logger.info("\n⏱️ All schedulers active!\n");
 
     // Run initial macro update on startup (silent, no broadcast)
     if (callbacks.macroUpdate) {
-        console.log("🚀 Running initial macro update (Silent Mode)...");
+        logger.info("🚀 Running initial macro update (Silent Mode)...");
         callbacks.macroUpdate(true).catch((err) =>
-            console.error("❌ Initial macro error:", err.message)
+            logger.error("❌ Initial macro error:", err.message)
         );
     }
 }

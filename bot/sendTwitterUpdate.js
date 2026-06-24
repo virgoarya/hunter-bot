@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 const { EmbedBuilder } = require("discord.js");
 const { fetchLatestTweets } = require("../services/twitterService");
 
@@ -8,13 +9,13 @@ async function sendTwitterUpdate(client) {
         const newTweets = await fetchLatestTweets("KobeissiLetter", "https://t.me/s/TheKobeissiLetter");
         
         if (!newTweets || newTweets.length === 0) {
-            console.log("📭 No new tweets from @KobeissiLetter.");
+            logger.info("📭 No new tweets from @KobeissiLetter.");
             return;
         }
 
         const channel = await client.channels.fetch(TWITTER_CHANNEL_ID);
         if (!channel) {
-            console.error("❌ Twitter broadcast channel not found:", TWITTER_CHANNEL_ID);
+            logger.error("❌ Twitter broadcast channel not found:", TWITTER_CHANNEL_ID);
             return;
         }
 
@@ -35,10 +36,10 @@ async function sendTwitterUpdate(client) {
                 .setTimestamp(new Date(tweet.date));
 
             await channel.send({ embeds: [embed] });
-            console.log("📡 Broadcasted tweet:", tweet.id);
+            logger.info("📡 Broadcasted tweet:", tweet.id);
         }
     } catch (error) {
-        console.error("Error in sendTwitterUpdate:", error.message);
+        logger.error("Error in sendTwitterUpdate:", error.message);
     }
 }
 
