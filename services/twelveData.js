@@ -16,13 +16,13 @@ const TWELVE_SYMBOLS = {
   "USD/CAD": "USDCAD",
   "USD/CHF": "USDCHF",
   "NZD/USD": "NZDUSD",
-  "GOLD": "XAUUSD", // Gold spot
+  "GOLD": "XAU/USD", // Gold spot
   "XAU/USD": "XAUUSD",
   "SILVER": "XAGUSD",
   "XAG/USD": "XAGUSD",
   "OIL": "OIL", // Crude Oil future (works as OIL)
   "DXY": "DXY",
-  "NASDAQ": "IXIC", // Nasdaq Composite
+  "NASDAQ": "COMP", // Nasdaq Composite
   "VIX": "VIX",
   // Add more mappings as needed
 };
@@ -35,12 +35,40 @@ async function fetchTwelveDataPrice(symbol) {
   }
   try {
     const tdSymbol = TWELVE_SYMBOLS[symbol] || symbol;
-    // Use the generic /quote endpoint for real‑time price (works for indices, FX, commodities)
-    const resp = await axios.get('https://api.twelvedata.com/quote', {
-      params: { symbol: tdSymbol, apikey: apiKey },
-      timeout: 10000,
-    });
-    const data = resp.data;
+    // Try the simple /price endpoint first (returns a flat price object)
+    let data;
+    // Try the simple /price endpoint first (works for many symbols). If it returns 404, fall back to /quote.
+    try {
+      const respPrice = await axios.get('https://api.twelvedata.com/price', {
+        params: { symbol: tdSymbol, apikey: apiKey },
+        timeout: 10000,
+      });
+      data = respPrice.data;
+    } catch (e) {
+      if (e.response && e.response.status === 404) {
+        // Symbol not supported by /price – use /quote instead
+        const respQuote = await axios.get('https://api.twelvedata.com/quote', {
+          params: { symbol: tdSymbol, apikey: apiKey },
+          timeout: 10000,
+        });
+        data = respQuote.data;
+      } else {
+        // Propagate other errors to outer catch
+        throw e;
+      }
+    }
+    // If /price succeeded but returned no price field, also try /quote as fallback
+    if (data && data.price === undefined && !(data.values && data.values.length)) {
+      const respQuote = await axios.get('https://api.twelvedata.com/quote', {
+        params: { symbol: tdSymbol, apikey: apiKey },
+        timeout: 10000,
+      });
+      data = respQuote.data;
+    }
+    if (!data || data.status === 'error') {
+      logger.warn(`TwelveData no price data for ${symbol}`);
+      return null;
+    }
     if (!data || data.status === 'error') {
       logger.warn(`TwelveData no price data for ${symbol}`);
       return null;
