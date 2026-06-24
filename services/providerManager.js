@@ -66,6 +66,10 @@ async function fetchPrices(symbols) {
         break;
       }
       const data = await withRetry(() => provider.fetchMulti(remaining, cfg.retryCount));
+      if (!data || typeof data !== 'object') {
+        logger.warn('Provider returned invalid data', { provider: name, data });
+        continue;
+      }
       for (const [sym, info] of Object.entries(data)) {
         if (info && !(sym in merged)) {
           // Prefer explicit `price`, otherwise fall back to `close`

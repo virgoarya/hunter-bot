@@ -195,23 +195,18 @@ client.on("interactionCreate", async (interaction) => {
     return;
   }
 
-  // Helper to safely reply
-  async function safeReply(content) {
-    if (interaction.replied) return;
-    if (interaction.deferred || interaction.wasDeferred) {
-      await interaction.editReply(content);
-    } else {
-      await interaction.reply(content);
-    }
-  }
+  let canReply = true;
+  let wasDeferred = false;
 
-  // Defer reply safely – ignore Unknown interaction (10062)
+  // Defer reply safely
   if (!interaction.deferred) {
     try {
       await interaction.deferReply();
+      wasDeferred = true;
     } catch (e) {
       if (e?.code === 10062) {
         logger.warn('Unknown interaction on deferReply, likely already handled', { interactionId: interaction.id });
+        canReply = false;
       } else {
         logger.error('Failed to defer reply', { error: e });
         throw e;
@@ -219,6 +214,19 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  // Helper to safely reply
+  async function safeReply(content) {
+    if (!canReply) return;
+    try {
+      if (wasDeferred && (interaction.replied || interaction.deferred)) {
+        await interaction.editReply(content);
+      } else {
+        await interaction.reply(content);
+      }
+    } catch (e) {
+      logger.error('Failed to send reply:', e);
+    }
+  }
 
   try {
     switch (interaction.commandName) {
@@ -272,15 +280,7 @@ client.on("interactionCreate", async (interaction) => {
     }
   } catch (error) {
     logger.error("Slash command error:", error);
-    try {
-      if (interaction.replied) {
-        await interaction.followUp({ content: "⚠️ Terjadi kesalahan saat memproses command." });
-      } else {
-        await interaction.reply({ content: "⚠️ Terjadi kesalahan saat memproses command." });
-      }
-    } catch (e) {
-      logger.error("Failed to send error reply:", e);
-    }
+    await safeReply("⚠️ Terjadi kesalahan saat memproses command.");
   }
 });
 
