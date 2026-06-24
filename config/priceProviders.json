@@ -1,8 +1,9 @@
 {
-  "order": ["yahoo", "stooq"],
+  "order": ["fmp", "yahoo", "stooq"],
   "retryCount": 0,
   "baseDelayMs": 3000,
   "circuitBreaker": {
+    "fmp": { "cooldownMs": 300000 },
     "yahoo": { "cooldownMs": 600000 },
     "stooq": { "cooldownMs": 300000 }
   }

@@ -58,44 +58,56 @@ async function fetchYahooPrice(symbol, retryCount = 0) {
     
     for (const yahooSym of allSymbols) {
         try {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=2d`;
-            const response = await axios.get(url, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                },
-                timeout: 15000,
-            });
+            // Try multiple endpoints
+            const endpoints = [
+                `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=2d`,
+                `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=1d`,
+                `https://query.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=1d`,
+            ];
+            
+            for (const url of endpoints) {
+                try {
+                    const response = await axios.get(url, {
+                        headers: {
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        },
+                        timeout: 10000,
+                    });
 
-            const result = response.data?.chart?.result?.[0];
-            if (!result) continue;
+                    const result = response.data?.chart?.result?.[0];
+                    if (!result) continue;
 
-            const meta = result.meta;
-            const close = meta?.regularMarketPrice;
-            const previousClose = meta?.chartPreviousClose || meta?.previousClose;
+                    const meta = result.meta;
+                    const close = meta?.regularMarketPrice;
+                    const previousClose = meta?.chartPreviousClose || meta?.previousClose;
 
-            if (!Number.isFinite(close) || close === 0) continue;
+                    if (!Number.isFinite(close) || close === 0) continue;
 
-            return {
-                symbol,
-                yahooSymbol: yahooSym,
-                close,
-                previousClose: previousClose || close,
-                change: previousClose
-                    ? (((close - previousClose) / previousClose) * 100).toFixed(3)
-                    : "0.000",
-                provider: "Yahoo Finance",
-            };
+                    return {
+                        symbol,
+                        yahooSymbol: yahooSym,
+                        close,
+                        previousClose: previousClose || close,
+                        change: previousClose
+                            ? (((close - previousClose) / previousClose) * 100).toFixed(3)
+                            : "0.000",
+                        provider: "Yahoo Finance",
+                    };
+                } catch (endpointErr) {
+                    if (endpointErr.code === 'ECONNABORTED') continue;
+                    const status = endpointErr.response?.status;
+                    if (status === 404 || status === 403 || status === 429) continue;
+                    throw endpointErr;
+                }
+            }
         } catch (error) {
             const status = error.response?.status;
             const errorMsg = error.message || (error.response ? `HTTP ${status}` : 'Network error');
-            if (status === 404 || error.code === 'ECONNABORTED' || status === 429 || status === 503 || !error.response) {
-                continue;
-            }
             logger.warn(`⚠️ Yahoo Finance error for ${symbol} (${yahooSym}): ${errorMsg}`);
         }
     }
     
-return null;
+    return null;
 }
 
 async function fetchMultiYahoo(symbols, delayMs = 500) {

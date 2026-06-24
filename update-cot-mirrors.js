@@ -22,7 +22,7 @@
  */
 
 const fs = require('fs');
-const logger = require('../utils/logger');
+const logger = require('./utils/logger');
 const path = require('path');
 const { execSync } = require('child_process');
 
