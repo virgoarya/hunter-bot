@@ -98,14 +98,14 @@ async function fetchYahooPrice(symbol, retryCount = 0) {
         }
     }
     
-    if (retryCount < 2) {
+if (retryCount < 2 && YAHOO_RETRY_SYMBOLS[symbol]) {
         const delay = (retryCount + 1) * 3000;
         logger.info(`⏳ Retrying Yahoo Finance for ${symbol} in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         return fetchYahooPrice(symbol, retryCount + 1);
-    }
-    
-    return null;
+      }
+      
+      return null;
 }
 
 async function fetchMultiYahoo(symbols, delayMs = 500) {

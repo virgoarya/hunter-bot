@@ -15,6 +15,11 @@ const providers = {
   stooq: require('./stooqService'),
   alphaVantage: require('./alphaVantage'),
 };
+// Omit AlphaVantage if API key is missing to avoid noisy errors
+if (!process.env.ALPHA_VANTAGE_KEY) {
+  delete providers.alphaVantage;
+}
+
 
 // Circuit‑breaker state (in‑memory)
 const cbState = {};
