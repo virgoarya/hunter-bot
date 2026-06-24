@@ -23,6 +23,7 @@ let priceCache = { data: null, updatedAt: 0 };
 /**
  * Fetch prices using the provider manager (Yahoo → Stooq → AlphaVantage).
  * The manager already handles fallback and circuit‑breaker logic.
+ * wrapped in a timeout to avoid hanging the Discord interaction.
  */
 async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
     const now = Date.now();
@@ -33,8 +34,14 @@ async function fetchMultiPrice(symbols = DEFAULT_PAIRS, forceRefresh = false) {
         return priceCache.data;
     }
 
-    // Use the central provider manager for all symbols
-    const result = await fetchPrices(symbols);
+    // Fetch with 10-second timeout
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Price fetch timeout')), 10000)
+    );
+    const result = await Promise.race([fetchPrices(symbols), timeoutPromise]).catch((e) => {
+        logger.error('Price fetch failed:', e.message);
+        return {};
+    });
 
     // Cache the fresh result
     if (result && Object.keys(result).length > 0) {
