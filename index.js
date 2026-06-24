@@ -194,15 +194,24 @@ client.on("interactionCreate", async (interaction) => {
     logger.warn('Interaction already replied', { interactionId: interaction.id });
     return;
   }
+
+  // Helper to safely reply
+  async function safeReply(content) {
+    if (interaction.replied) return;
+    if (interaction.deferred || interaction.wasDeferred) {
+      await interaction.editReply(content);
+    } else {
+      await interaction.reply(content);
+    }
+  }
+
   // Defer reply safely – ignore Unknown interaction (10062)
   if (!interaction.deferred) {
     try {
       await interaction.deferReply();
     } catch (e) {
-      // If the interaction has already been responded to or is invalid, Discord returns code 10062.
       if (e?.code === 10062) {
         logger.warn('Unknown interaction on deferReply, likely already handled', { interactionId: interaction.id });
-        // Continue without deferring; we may still send a follow‑up later.
       } else {
         logger.error('Failed to defer reply', { error: e });
         throw e;
@@ -226,14 +235,14 @@ client.on("interactionCreate", async (interaction) => {
           const { buildSessionOutlook } = require("./services/outlookBroadcast");
           payload = await buildSessionOutlook("New York");
         }
-        await interaction.editReply(payload || "Data outlook tidak tersedia.");
+        await safeReply(payload || "Data outlook tidak tersedia.");
         break;
       }
 
       case "cot": {
         const { buildCOTBroadcast } = require("./services/outlookBroadcast");
         const payload = await buildCOTBroadcast();
-        await interaction.editReply(payload || "Data COT tidak tersedia.");
+        await safeReply(payload || "Data COT tidak tersedia.");
         break;
       }
 
@@ -241,30 +250,30 @@ client.on("interactionCreate", async (interaction) => {
         const { buildFlowEmbed } = require("./services/liquidityFlow");
         const flowData = await fetchLiquidityFlow();
         const payload = buildFlowEmbed(flowData);
-        await interaction.editReply(payload || "Data flow tidak tersedia.");
+        await safeReply(payload || "Data flow tidak tersedia.");
         break;
       }
 
       case "calendar": {
         const payload = await buildCalendarBroadcast();
-        await interaction.editReply(payload || "Tidak ada event calendar hari ini.");
+        await safeReply(payload || "Tidak ada event calendar hari ini.");
         break;
       }
 
       case "price": {
         const prices = await fetchMultiPrice();
         const msg = formatPriceTable(prices);
-        await interaction.editReply(msg || "Harga pasar tidak tersedia.");
+        await safeReply(msg || "Harga pasar tidak tersedia.");
         break;
       }
 
       default:
-        await interaction.editReply("Command tidak dikenal.");
+        await safeReply("Command tidak dikenal.");
     }
   } catch (error) {
     logger.error("Slash command error:", error);
     try {
-      if (interaction.replied || interaction.deferred) {
+      if (interaction.replied) {
         await interaction.followUp({ content: "⚠️ Terjadi kesalahan saat memproses command." });
       } else {
         await interaction.reply({ content: "⚠️ Terjadi kesalahan saat memproses command." });
