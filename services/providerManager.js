@@ -47,15 +47,15 @@ async function fetchPrices(symbols) {
   const merged = {};
 
   for (const name of cfg.order) {
-    // skip if circuit‑breaker active
-    if (Date.now() < cbState[name].cooldownUntil) {
+    // skip if circuit‑breaker active (only if entry exists)
+    if (cbState[name] && Date.now() < cbState[name].cooldownUntil) {
       logger.warn('Provider on cooldown, skipping', { provider: name });
       continue;
     }
 
     const provider = providers[name];
     if (!provider) {
-      logger.error('Missing provider module', { provider: name });
+      logger.info('Provider module not available (skipped)', { provider: name });
       continue;
     }
 
